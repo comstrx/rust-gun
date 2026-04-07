@@ -1,0 +1,15 @@
+[package]
+name = "bloats"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+bloat-demo = ["dep:demo"]
+
+[dependencies]
+demo = { path = ".." }
+
+[[bin]]
+name = "bloat-demo"
+path = "demo.rs"

@@ -1,0 +1,22 @@
+[package]
+name = "bloats"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[features]
+bloat-demo = ["dep:demo"]
+
+[dependencies]
+demo = { workspace = true, optional = true }
+
+[[bin]]
+name = "bloat-demo"
+path = "demo.rs"

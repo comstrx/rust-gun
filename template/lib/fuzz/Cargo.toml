@@ -1,0 +1,19 @@
+[package]
+name = "fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+demo = { path = ".." }
+libfuzzer-sys = "0.4.10"
+
+[[bin]]
+name = "demo"
+path = "fuzz_targets/demo.rs"
+bench = false
+test = false
+doc = false
