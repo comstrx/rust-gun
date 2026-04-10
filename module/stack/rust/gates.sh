@@ -2,9 +2,9 @@
 
 ENSURE_TOOLS=1
 
-cmd_local_help () {
+cmd_gates_help () {
 
-    info_ln "Local CI :\n"
+    info_ln "CI Gates :\n"
 
     printf '    %s\n' \
         "ci-stable                  * CI stable (check + test) no-default-features + all-features + release" \

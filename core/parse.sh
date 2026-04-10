@@ -1,10 +1,4 @@
 
-[[ "${BASH_SOURCE[0]}" != "${0}" ]] || { printf "%s\n" "parse.sh: this file should not be run externally." >&2; exit 2; }
-[[ -n "${PARSE_LOADED:-}" ]] && return 0
-PARSE_LOADED=1
-
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/fsys.sh"
-
 parse_require_bash () {
 
     [[ -n "${BASH_VERSINFO[0]-}" ]] || die "parse: bash required" 2
@@ -1089,8 +1083,7 @@ parse_usage_extract () {
 }
 parse_args () {
 
-    local IFS=$' \n\t'
-    local scope="assign"
+    local IFS=$' \n\t' scope="assign" usage_fn="" a=""
 
     if [[ "${1-}" == "--local" ]]; then
         scope="local"
@@ -1106,8 +1099,6 @@ parse_args () {
     local -a schema=()
 
     parse_args_split argv schema "$@"
-
-    local usage_fn="" a=""
     parse_usage_extract schema usage_fn
 
     for a in "${argv[@]}"; do
@@ -1172,7 +1163,6 @@ parse () {
 
         printf '❌ %s\n' "${msg}" >&2
         printf 'return %s 2>/dev/null || exit %s\n' "${code}" "${code}"
-
         exit 0
 
     }

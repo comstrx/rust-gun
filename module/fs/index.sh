@@ -50,6 +50,7 @@ cmd_trash () {
 cmd_clear () {
 
     source <(parse "$@" -- :src)
+
     fs_dir_exists "${src}" && fs_remove_path "${src}" true "${kwargs[@]}"
     fs_file_exists "${src}" && : > "${src}"
 

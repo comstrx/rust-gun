@@ -5,15 +5,11 @@ run_git () {
     shift 2 || true
 
     if [[ "${kind}" == http* ]]; then
-
         local old="${VERBOSE:-0}"
         VERBOSE=0
-
         GIT_TERMINAL_PROMPT=0 run git "$@"
-
         VERBOSE="${old}"
         return $?
-
     fi
     if [[ -n "${ssh_cmd}" ]]; then
         GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${ssh_cmd}" run git "$@"

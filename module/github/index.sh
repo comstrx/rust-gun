@@ -68,6 +68,7 @@ cmd_new_repo () {
     source <(parse "$@" -- sync:bool=true)
 
     gh_new_repo "${kwargs[@]}"
+
     (( sync )) && { cmd_sync_vars "${kwargs[@]}"; cmd_sync_secrets "${kwargs[@]}"; }
 
 }

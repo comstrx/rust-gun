@@ -2,14 +2,14 @@
 
 <div align="center">
   <br/>
-  <img height="220" alt="logo" src="https://github.com/user-attachments/assets/5bd9a783-cc5a-4117-bf21-d9be3f36d36e"/>
+  <img height="220" alt="logo" src="https://github.com/user-attachments/assets/87452c6b-5915-434f-bff2-8482a5385a3b" />
   <br/>
 </div>
 
-### ⚡ A production-grade `Rust workspace` blueprint
+### ⚡ A production-grade `Rust manager tool` blueprint
 
-- The strongest Rust crate/workspace structure in the world — with a magic CLI tool. 🔥
-- A production-ready CLI that turns any Rust workspace into a **clean, repeatable workflow**.
+- The strongest Rust bin/lib/workspace structure in the world — with a magic CLI tool. 🔥
+- A production-ready CLI that turns any Rust project into a **clean, repeatable workflow**.
 - No scattered scripts.
 - No “how do I run this repo?” confusion. Just **one command surface** your whole team can use.
 - Simple commands that manage the **gates** of the most powerful crates in the world.
@@ -21,13 +21,13 @@
 
 - **Gun** is a battle-tested command center for Rust projects — built with a little ego on purpose. 🫡
 
-- A **world-class crate/workspace scaffolding + CI toolbox**. 💯
+- A **world-class bin/lib/workspace scaffolding + CI toolbox**. 💯
 
 - Powered by a **seriously strong Bash engine** that makes your repo feel like a product from day one.
 
 ### 🤝 What you get:
 
-- **World-class workspace structure** — clean, scalable, and copy/paste reusable across projects.
+- **World-class project structure** — clean, scalable, and copy/paste reusable across projects.
 
 - **Smart diagnostics** — `doctor` prints OS/tools/Rust/git state in seconds.
 
@@ -55,7 +55,7 @@ cd rust-gun
 
 bash install.sh \
   --alias <Your-Alias> \
-  --name <Crate/Workspace-Name> \
+  --name <bin/lib/Workspace-Name> \
   --user <Github-Username> \
   --repo <Github-Repo-Name> \
   --branch <Default-Branch> \
@@ -106,7 +106,7 @@ gun doctor                       # Final status check
 
 ### 🏗️ Project Structure
 
-- This template is a **Rust Workspace + Bash Engine**.
+- This template is a **Rust project + Bash Engine**.
 - The Rust code lives in `crates/`, and the **brain** lives in `scripts/`.
 
 ```
@@ -119,7 +119,7 @@ gun doctor                       # Final status check
 │
 ├── benches/                     # Global benchmarks
 ├── examples/                    # Runnable examples
-├── tests/                       # Workspace integration tests
+├── tests/                       # project integration tests
 ├── fuzz/                        # Fuzz testing harness + targets
 ├── bloats/                      # Binary size analysis (reports / scripts / inputs)
 ├── supply-chain/                # Supply-chain security (cargo-vet data)
@@ -150,7 +150,7 @@ gun doctor                       # Final status check
 ├── spellcheck.toml              # Cargo-spellcheck config
 ├── spellcheck.dic               # Custom dictionary
 ├── Cross.toml                   # cross / targets
-├── Cargo.toml                   # Cargo workspace
+├── Cargo.toml                   # Cargo root
 ```
 
 ---
@@ -167,11 +167,11 @@ gun doctor                       # Final status check
 | `gun ensure`          | **Toolchain Manager.** Ensures required tools exist (Rust toolchain, cargo tools, linters, formatters).       |
 | `gun ci-local`        | **The Gatekeeper.** Runs the local CI pipeline locally. _(depend on your version/config — run `gun --help`.)_ |
 | `gun new`             | **Crate Generator.** Creates a new crate under `crates/` using best-practice defaults.                        |
-| `gun meta`            | **Workspace Metadata.** Prints workspace/package metadata (useful for automation and scripts).                |
-| `gun init`            | **Link Repository.** Initializes Git + connects the workspace to a GitHub remote.                             |
+| `gun meta`            | **Project Metadata.** Prints workspace/package metadata (useful for automation and scripts).                |
+| `gun init`            | **Link Repository.** Initializes Git + connects the project to a GitHub remote.                             |
 | `gun remote`          | **Remote Manager.** Show/add/set remotes and validate the repo link.                                          |
 | `gun push`            | **Deployment Engine.** Runs checks, commits/tags if needed, updates changelog, and pushes to remote.          |
-| `gun test`            | Runs tests (unit + integration) for the workspace.                                                            |
+| `gun test`            | Runs tests (unit + integration) for the project.                                                            |
 | `gun fuzz`            | Runs fuzz targets under `fuzz/fuzz_targets`.                                                                  |
 | `gun miri`            | Undefined behavior checking via Miri (nightly).                                                               |
 | `gun sanitizers`      | Sanitizer runs (nightly, target-specific) [asan/tsan/lsan/msan].                                              |
@@ -184,7 +184,7 @@ gun doctor                       # Final status check
 
 ### 💡 Design idea :
 
-- Rust workspace = clean, modular crates in `crates/`
+- Rust project = clean, modular crates in `crates/`
 - Bash engine = a stable CLI surface that orchestrates everything (install, tools, CI-local, safety, perf, git)
 
 ---

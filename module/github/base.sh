@@ -82,7 +82,6 @@ gh_set_var () {
     if [[ "${action}" == "remove" ]]; then
 
         (( force )) || confirm "Delete ${type} '${name}' from ${repo}?" || return 0
-
         gh_cmd "${type}" delete "${name}" --repo "${repo}" "${kwargs[@]}"
         return 0
 
@@ -170,6 +169,7 @@ gh_var_action () {
         fi
 
         [[ -f "${file}" ]] || return 0
+
         gh_sync_vars "${type}" "${repo}" "${file}" "${force}" "${kwargs[@]}"
 
     else
@@ -178,6 +178,7 @@ gh_var_action () {
         case "${type}" in secret|variable) ;; *) die "Invalid --type (use variable|secret)" ;; esac
 
         [[ "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "Invalid ${type} key: ${name}"
+
         gh_set_var "${action}" "${type}" "${repo}" "${name}" "${value}" "${force}" "${kwargs[@]}"
 
     fi

@@ -436,42 +436,6 @@ cmd_remove_branch () {
 
 }
 
-cmd_all_tags () {
-
-    git_repo_guard
-    source <(parse "$@" -- remote=origin only_local:bool auth key token token_env)
-
-    if (( only_local )); then
-        git tag --list
-        return 0
-    fi
-
-    git_require_remote "${remote}"
-
-    local kind="" target="" safe="" ssh_cmd=""
-    IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
-
-    ensure_pkg awk
-    run_git "${kind}" "${ssh_cmd}" ls-remote --tags --refs "${target}" | awk '{ sub("^refs/tags/","",$2); print $2 }'
-
-}
-cmd_all_branches () {
-
-    git_repo_guard
-    source <(parse "$@" -- remote=origin only_local:bool)
-
-    if (( only_local )); then
-        git for-each-ref --format='%(refname:short)' "refs/heads"
-        return 0
-    fi
-
-    ensure_pkg awk
-    git_require_remote "${remote}"
-
-    GIT_TERMINAL_PROMPT=0 git fetch --prune "${remote}" >/dev/null 2>&1 || true
-    git for-each-ref --format='%(refname:short)' "refs/heads" "refs/remotes/${remote}" | awk '!/\/HEAD$/'
-
-}
 cmd_default_branch () {
 
     git_repo_guard
@@ -524,5 +488,42 @@ cmd_switch_branch () {
 
     (( create )) || die "Branch not found: ${branch}. Use --create to create locally."
     git_switch -c "${branch}"
+
+}
+
+cmd_all_tags () {
+
+    git_repo_guard
+    source <(parse "$@" -- remote=origin only_local:bool auth key token token_env)
+
+    if (( only_local )); then
+        git tag --list
+        return 0
+    fi
+
+    git_require_remote "${remote}"
+
+    local kind="" target="" safe="" ssh_cmd=""
+    IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
+
+    ensure_pkg awk
+    run_git "${kind}" "${ssh_cmd}" ls-remote --tags --refs "${target}" | awk '{ sub("^refs/tags/","",$2); print $2 }'
+
+}
+cmd_all_branches () {
+
+    git_repo_guard
+    source <(parse "$@" -- remote=origin only_local:bool)
+
+    if (( only_local )); then
+        git for-each-ref --format='%(refname:short)' "refs/heads"
+        return 0
+    fi
+
+    ensure_pkg awk
+    git_require_remote "${remote}"
+
+    GIT_TERMINAL_PROMPT=0 git fetch --prune "${remote}" >/dev/null 2>&1 || true
+    git for-each-ref --format='%(refname:short)' "refs/heads" "refs/remotes/${remote}" | awk '!/\/HEAD$/'
 
 }

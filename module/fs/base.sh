@@ -94,6 +94,7 @@ fs_capitalize_path () {
         [[ -n "${seg}" ]] || continue
         [[ -n "${out}" ]] && out+="/${seg^}" || out="${seg^}"
     done
+
     if [[ -n "${lead}" ]]; then
         [[ -n "${out}" ]] && out="/${out}" || out="/"
     fi
