@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 
 ENSURE_TOOLS=1
 
@@ -299,6 +298,7 @@ cmd_ci_publish () {
 cmd_ci_local () {
 
     ENSURE_TOOLS=0
+
     cmd_ensure
 
     cmd_ci_stable

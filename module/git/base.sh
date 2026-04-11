@@ -1,6 +1,8 @@
 
 run_git () {
 
+    ensure_pkg git
+
     local kind="${1:-ssh}" ssh_cmd="${2:-}"
     shift 2 || true
 
@@ -102,7 +104,6 @@ git_is_semver () {
         main="${v}"
         build=""
     fi
-
     if [[ "${main}" == *-* ]]; then
         rest="${main%%-*}"
         pre="${main#*-}"
@@ -110,9 +111,10 @@ git_is_semver () {
         rest="${main}"
         pre=""
     fi
-
-    if [[ "${rest}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then :
-    else return 1
+    if [[ "${rest}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+        :
+    else
+        return 1
     fi
 
     if [[ -n "${pre}" ]]; then
@@ -323,8 +325,8 @@ git_guess_ssh_key () {
     local p="$(pwd -P)" key="$(git_keymap_get 2>/dev/null || true)"
 
     [[ -n "${key}" ]] && { printf '%s\n' "${key}"; return 0; }
-    [[ "${p}" == */personal/* || "${p}" == */personal ]] && { printf '%s\n' "personal"; return 0; }
-    [[ "${p}" == */company/*  || "${p}" == */company  ]] && { printf '%s\n' "company"; return 0; }
+    [[ "${p}" == */private/* || "${p}" == */private ]] && { printf '%s\n' "private"; return 0; }
+    [[ "${p}" == */public/*  || "${p}" == */public  ]] && { printf '%s\n' "public"; return 0; }
 
     if [[ -n "${WORKSPACE_DIR:-}" && "${p}" == "${WORKSPACE_DIR%/}/"* ]]; then
 
@@ -345,7 +347,7 @@ git_resolve_ssh_key () {
     local key="${hint}"
     [[ -f "${key}" ]] || key="${HOME}/.ssh/${hint}"
     [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519${hint:+_${hint}}"
-    [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519_personal"
+    [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519_private"
     [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519"
 
     printf '%s\n' "${key}"
@@ -367,10 +369,8 @@ git_auth_resolve () {
 
         kind="ssh" target="${remote}" safe="${remote}" key="$(git_resolve_ssh_key "${key}")"
 
-        if [[ -f "${key}" ]]; then
-            printf -v ssh_cmd 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2' "${key}"
-        else
-            ssh_cmd='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2'
+        if [[ -f "${key}" ]]; then printf -v ssh_cmd 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2' "${key}"
+        else ssh_cmd='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2'
         fi
 
         printf '%s\t%s\t%s\t%s\n' "${kind}" "${target}" "${safe}" "${ssh_cmd}"
@@ -508,7 +508,7 @@ git_norm_path_git () {
     printf '%s.git\n' "${p}"
 
 }
-git_init_supports_initial_branch () {
+git_initial_branch () {
 
     ensure_pkg grep git
     ( git init -h 2>&1 || true ) | grep -q -- '--initial-branch'
@@ -524,7 +524,7 @@ git_set_default_branch () {
     return 0
 
 }
-git_guard_no_unborn_nested_repos () {
+git_guard_no_unborn () {
 
     ensure_pkg find git
 
@@ -648,6 +648,111 @@ git_root_version () {
                 END { exit 1 }
             ' "${root}/setup.py" 2>/dev/null
         )" || true
+
+    fi
+    if [[ -z "${v}" && ( -f "${root}/go.mod" || -f "${root}/go.work" ) ]]; then
+
+        v="$(
+            git -C "${root}" tag --list |
+            awk '
+                /^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/ {
+                    raw = $0
+                    tag = raw
+                    sub(/^v/, "", tag)
+
+                    split(tag, a, /[-+]/)
+                    split(a[1], n, ".")
+
+                    major = n[1] + 0
+                    minor = n[2] + 0
+                    patch = n[3] + 0
+
+                    pre = (tag ~ /-/) ? 0 : 1
+
+                    printf "%020d %020d %020d %d %s\n", major, minor, patch, pre, raw
+                }
+            ' |
+            sort |
+            tail -n 1 |
+            awk '{ print $5 }'
+        )" || true
+
+        [[ -n "${v}" ]] && v="${v#v}"
+
+    fi
+    if [[ -z "${v}" && -f "${root}/xmake.lua" ]]; then
+
+        v="$(
+            awk '
+                match($0, /^[[:space:]]*set_version[[:space:]]*\([[:space:]]*"([^"]+)"/, m) {
+                    print m[1]
+                    exit 0
+                }
+                END { exit 1 }
+            ' "${root}/xmake.lua" 2>/dev/null
+        )" || true
+
+    fi
+    if [[ -z "${v}" ]]; then
+
+        local proj=""
+        local -a proj_globs=(
+            "${root}"/*.csproj
+            "${root}"/*.fsproj
+            "${root}"/*.vbproj
+            "${root}"/src/*.csproj
+            "${root}"/src/*.fsproj
+            "${root}"/src/*.vbproj
+            "${root}"/src/*/*.csproj
+            "${root}"/src/*/*.fsproj
+            "${root}"/src/*/*.vbproj
+            "${root}"/app/*.csproj
+            "${root}"/app/*.fsproj
+            "${root}"/app/*.vbproj
+            "${root}"/app/*/*.csproj
+            "${root}"/app/*/*.fsproj
+            "${root}"/app/*/*.vbproj
+            "${root}"/apps/*.csproj
+            "${root}"/apps/*.fsproj
+            "${root}"/apps/*.vbproj
+            "${root}"/apps/*/*.csproj
+            "${root}"/apps/*/*.fsproj
+            "${root}"/apps/*/*.vbproj
+        )
+
+        for proj in "${proj_globs[@]}"; do
+
+            [[ -f "${proj}" ]] || continue
+
+            v="$(
+                awk '
+                    match($0, /<Version>[[:space:]]*([^<[:space:]]+)[[:space:]]*<\/Version>/, m) {
+                        print m[1]
+                        exit 0
+                    }
+                    match($0, /<VersionPrefix>[[:space:]]*([^<[:space:]]+)[[:space:]]*<\/VersionPrefix>/, m) {
+                        vp=m[1]
+                    }
+                    match($0, /<VersionSuffix>[[:space:]]*([^<[:space:]]+)[[:space:]]*<\/VersionSuffix>/, m) {
+                        vs=m[1]
+                    }
+                    END {
+                        if (vp != "" && vs != "") {
+                            print vp "-" vs
+                            exit 0
+                        }
+                        if (vp != "") {
+                            print vp
+                            exit 0
+                        }
+                        exit 1
+                    }
+                ' "${proj}" 2>/dev/null
+            )" || true
+
+            [[ -n "${v}" ]] && break
+
+        done
 
     fi
     if [[ -z "${v}" ]]; then

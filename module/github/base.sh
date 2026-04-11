@@ -1,7 +1,7 @@
 
 gh_cmd () {
 
-    ensure_pkg gh
+    ensure_pkg gh mkdir
     source <(parse "$@" -- profile)
 
     local p="${profile:-${GH_PROFILE:-${GIT_PROFILE:-"$(git_guess_ssh_key)"}}}"

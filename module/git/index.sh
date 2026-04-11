@@ -4,6 +4,11 @@ cmd_repo_root () {
     git_repo_root
 
 }
+cmd_guess_tag () {
+
+    printf '%s\n' "$(git_norm_tag "v$(git_root_version)")"
+
+}
 cmd_is_repo () {
 
     ensure_pkg git
@@ -17,6 +22,7 @@ cmd_is_repo () {
     return 1
 
 }
+
 cmd_clone () {
 
     ensure_pkg git
@@ -43,12 +49,7 @@ cmd_status () {
     return 1
 
 }
-cmd_guess_tag () {
-
-    printf '%s\n' "$(git_norm_tag "v$(git_root_version)")"
-
-}
-cmd_remote_info () {
+cmd_remote () {
 
     git_repo_guard
     source <(parse "$@" -- remote=origin)
@@ -71,6 +72,93 @@ cmd_remote_info () {
 
 }
 
+cmd_add_ssh () {
+
+    source <(parse "$@" -- name host alias title upload:bool)
+
+    [[ -n "${host}" ]] || host="${GIT_HOST:-github.com}"
+    [[ -n "${name}" ]] || name="$(git_guess_ssh_key 2>/dev/null || true)"
+    [[ -n "${name}" ]] || die "ssh: cannot guess key name. Use --name <key>"
+
+    local base="$(git_new_ssh_key "${name}" "${host}" "${alias}" "${kwargs[@]}")"
+    local pub="${base}.pub"
+
+    if (( upload )) && [[ "${host}" == *github* ]]; then
+
+        ensure_pkg gh
+        gh auth status >/dev/null 2>&1 || die "GitHub CLI not authenticated. Run 'gh auth login'"
+
+        [[ -n "${title}" ]] || { local os="$(os_name)"; is_wsl && os="wsl"; title="${os}${name:+-${name}}"; }
+        title="${title^^}"
+
+        run gh ssh-key add "${pub}" --title "${title}" --type authentication
+        success "Key uploaded to GitHub -> ${title}"
+
+    fi
+
+    git rev-parse --show-toplevel >/dev/null 2>&1 && git_keymap_set "${base}" >/dev/null 2>&1 || true
+
+    success "OK: key created -> ${base}"
+    success "Public key:"
+    cat -- "${pub}"
+
+}
+cmd_changelog () {
+
+    ensure_pkg grep mktemp mv date tail git
+
+    local tag="${1:-unreleased}" msg="${2:-}"
+
+    [[ "${tag}" =~ ^v[0-9] ]] && tag="${tag#v}"
+    [[ -n "${msg}" ]] || msg="Track ${tag} release."
+    msg="${msg//$'\r'/ }"; msg="${msg//$'\n'/ }"
+
+    local root="$(git_repo_root)"
+    local file="${root}/CHANGELOG.md"
+    local day="$(date -u +%Y-%m-%d)"
+    local header="## ${tag} ( ${day} )"
+    local block="${header}"$'\n\n'"- ${msg}"
+    local tmp="$(mktemp "${TMPDIR:-/tmp}/git.XXXXXX")"
+
+    if [[ -f "${file}" ]]; then
+
+        local top=""
+        IFS= read -r top < "${file}" 2>/dev/null || true
+
+        if [[ "${top}" != "# Changelog" ]]; then
+
+            { printf '%s\n\n' "# Changelog"; cat "${file}"; } > "${tmp}"
+            mv -f "${tmp}" "${file}"
+            tmp="$(mktemp)" || die "changelog: mktemp failed"
+
+        fi
+
+        local first="$(tail -n +2 "${file}" 2>/dev/null | grep -m1 -E '^[[:space:]]*## ' || true)"
+
+        if [[ "${first}" == "${header}" ]]; then
+            log "changelog: already written -> skip"
+            return 0
+        fi
+
+        {
+            printf '%s\n\n' "# Changelog"
+            printf '%s\n' "${block}"
+            tail -n +2 "${file}"
+        } > "${tmp}"
+
+    else
+
+        {
+            printf '%s\n\n' "# Changelog"
+            printf '%s\n' "${block}"
+        } > "${tmp}"
+
+    fi
+
+    mv -f "${tmp}" "${file}"
+    success "changelog: updated ${file}"
+
+}
 cmd_init () {
 
     ensure_pkg git
@@ -83,7 +171,7 @@ cmd_init () {
 
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 
-        if git_init_supports_initial_branch; then
+        if git_initial_branch; then
             run git init -b "${branch}"
         else
             run git init
@@ -177,14 +265,14 @@ cmd_push () {
     fi
     if [[ -z "${branch}" ]]; then
         branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-        [[ -n "${branch}" ]] || branch="main"
+        [[ -n "${branch}" ]] || die "Detached HEAD. Use --branch <name>."
     fi
     if [[ -z "$message" ]]; then
         [[ -n "${tag}" ]] && message="Track ${tag} release." || message="new commit"
     fi
 
     local root="$(git_repo_root)"
-    git_guard_no_unborn_nested_repos "${root}"
+    git_guard_no_unborn "${root}"
 
     run_git "${kind}" "${ssh_cmd}" add -A || die "git add failed."
 
@@ -269,98 +357,16 @@ cmd_push () {
     success "OK: pushed via ${kind} -> ${safe}"
 
 }
-cmd_add_ssh () {
+cmd_release () {
 
-    source <(parse "$@" -- name host alias title upload:bool)
-
-    [[ -n "${host}" ]] || host="${GIT_HOST:-github.com}"
-    [[ -n "${name}" ]] || name="$(git_guess_ssh_key 2>/dev/null || true)"
-    [[ -n "${name}" ]] || die "ssh: cannot guess key name. Use --name <key>"
-
-    local base="$(git_new_ssh_key "${name}" "${host}" "${alias}" "${kwargs[@]}")"
-    local pub="${base}.pub"
-
-    if (( upload )) && [[ "${host}" == *github* ]]; then
-
-        ensure_pkg gh
-        gh auth status >/dev/null 2>&1 || die "GitHub CLI not authenticated. Run 'gh auth login'"
-
-        [[ -n "${title}" ]] || { local os="$(os_name)"; is_wsl && os="wsl"; title="${os}${name:+-${name}}"; }
-        title="${title^^}"
-
-        run gh ssh-key add "${pub}" --title "${title}" --type authentication
-        success "Key uploaded to GitHub -> ${title}"
-
-    fi
-
-    git rev-parse --show-toplevel >/dev/null 2>&1 && git_keymap_set "${base}" >/dev/null 2>&1 || true
-
-    success "OK: key created -> ${base}"
-    success "Public key -> $(cat "${pub}")"
-
-}
-cmd_changelog () {
-
-    ensure_pkg grep mktemp mv date tail git
-
-    local tag="${1:-unreleased}" msg="${2:-}"
-
-    [[ "${tag}" =~ ^v[0-9] ]] && tag="${tag#v}"
-    [[ -n "${msg}" ]] || msg="Track ${tag} release."
-    msg="${msg//$'\r'/ }"; msg="${msg//$'\n'/ }"
-
-    local root="$(git_repo_root)"
-    local file="${root}/CHANGELOG.md"
-    local day="$(date -u +%Y-%m-%d)"
-    local header="## ${tag} ( ${day} )"
-    local block="${header}"$'\n\n'"- ${msg}"
-    local tmp="$(mktemp "${TMPDIR:-/tmp}/git.XXXXXX")"
-
-    if [[ -f "${file}" ]]; then
-
-        local top=""
-        IFS= read -r top < "${file}" 2>/dev/null || true
-
-        if [[ "${top}" != "# Changelog" ]]; then
-
-            { printf '%s\n\n' "# Changelog"; cat "${file}"; } > "${tmp}"
-            mv -f "${tmp}" "${file}"
-            tmp="$(mktemp)" || die "changelog: mktemp failed"
-
-        fi
-
-        local first="$(tail -n +2 "${file}" 2>/dev/null | grep -m1 -E '^[[:space:]]*## ' || true)"
-
-        if [[ "${first}" == "${header}" ]]; then
-            log "changelog: already written -> skip"
-            return 0
-        fi
-
-        {
-            printf '%s\n\n' "# Changelog"
-            printf '%s\n' "${block}"
-            tail -n +2 "${file}"
-        } > "${tmp}"
-
-    else
-
-        {
-            printf '%s\n\n' "# Changelog"
-            printf '%s\n' "${block}"
-        } > "${tmp}"
-
-    fi
-
-    mv -f "${tmp}" "${file}"
-    success "changelog: updated ${file}"
+    cmd_push --release --changelog "$@"
 
 }
 
 cmd_new_tag () {
 
-    git_repo_guard
     source <(parse "$@" -- :tag)
-    cmd_push --tag "${tag}" "${kwargs[@]}"
+    cmd_push --tag "${tag}" --changelog "${kwargs[@]}"
 
 }
 cmd_remove_tag () {
@@ -402,11 +408,10 @@ cmd_new_branch () {
         IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
 
         if git_remote_has_branch "${kind}" "${ssh_cmd}" "${target}" "${branch}"; then
-
             run_git "${kind}" "${ssh_cmd}" fetch "${target}" "refs/heads/${branch}:refs/remotes/${remote}/${branch}" >/dev/null 2>&1 || true
             git_switch -c "${branch}" --track "${remote}/${branch}"
-            return 0
 
+            return 0
         fi
 
     fi
@@ -513,17 +518,32 @@ cmd_all_tags () {
 cmd_all_branches () {
 
     git_repo_guard
-    source <(parse "$@" -- remote=origin only_local:bool)
+    ensure_pkg awk
+    source <(parse "$@" -- remote=origin only_local:bool auth key token token_env)
 
     if (( only_local )); then
-        git for-each-ref --format='%(refname:short)' "refs/heads"
+        git for-each-ref --format='%(refname:short)' "refs/heads" | awk 'NF && !seen[$0]++'
         return 0
     fi
 
-    ensure_pkg awk
     git_require_remote "${remote}"
 
-    GIT_TERMINAL_PROMPT=0 git fetch --prune "${remote}" >/dev/null 2>&1 || true
-    git for-each-ref --format='%(refname:short)' "refs/heads" "refs/remotes/${remote}" | awk '!/\/HEAD$/'
+    local kind="" target="" safe="" ssh_cmd=""
+    IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
+    [[ -n "${kind}" && -n "${target}" ]] || die "Failed to resolve git auth for remote '${remote}'."
+
+    run_git "${kind}" "${ssh_cmd}" fetch --prune "${target}" >/dev/null 2>&1 || true
+
+    git for-each-ref --format='%(refname:short)' "refs/heads" "refs/remotes/${remote}" |
+    awk -v remote="${remote}" '
+        NF == 0 { next }
+        $0 ~ ("^" remote "/HEAD$") { next }
+
+        {
+            name = $0
+            sub("^" remote "/", "", name)
+            if (name != "" && !seen[name]++) print name
+        }
+    '
 
 }
