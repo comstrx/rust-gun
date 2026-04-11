@@ -1,42 +1,33 @@
 
-replace_all () {
+forge_replace_all () {
 
-    ensure_pkg find mktemp rm perl xargs
+    ensure_pkg find mktemp rm perl xargs 1>&2
 
-    local root="${1:-}" map_name="${2:-}" ig="" f="" any=0 kv="" k=""
+    local root="${1:-}" map_name="${2:-}" ig="" f="" any=0 k=""
 
-    [[ -n "${root}" && -d "${root}" ]] || die "replace_all: root dir not found: ${root}"
-    [[ -n "${map_name}" ]] || die "replace_all: missing map name"
+    [[ -n "${root}" && -d "${root}" ]] || die "replace: root dir not found: ${root}"
+    [[ -n "${map_name}" ]] || die "replace: missing map name"
 
     local -n map="${map_name}"
     ((${#map[@]})) || return 0
 
-    local -a ignore_list=( .git target .idea .vscode node_modules dist build vendor .next .nuxt .venv venv __pycache__ )
+    local -a ignore_list=( .git target node_modules dist build vendor .next .nuxt .venv venv .vscode __pycache__ )
     local -a find_cmd=( find "${root}" -type d "(" )
 
-    kv="$(mktemp "${TMPDIR:-/tmp}/gun.replace.XXXXXX")" || die "replace_all: mktemp failed"
-    trap 'rm -f -- "${kv}" 2>/dev/null || true; trap - RETURN' RETURN
-
-    : > "${kv}" || die "replace_all: cannot write tmp file: ${kv}"
+    local kv="$(mktemp "${TMPDIR:-/tmp}/replace.map.XXXXXX")" || die "replace: mktemp failed"
+    trap 'rm -rf -- "${kv}" 2>/dev/null || true; trap - RETURN' RETURN
+    : > "${kv}" || { rm -f "${kv}" 2>/dev/null || true; die "replace: cannot write tmp file"; }
 
     for k in "${!map[@]}"; do
-        [[ "${k}" != *$'\0'* ]] || die "replace_all: key contains NUL"
-        [[ "${map["${k}"]}" != *$'\0'* ]] || die "replace_all: value contains NUL"
+        [[ "${k}" != *$'\0'* && "${map["${k}"]}" != *$'\0'* ]] || die "replace: NUL not allowed in map"
         printf '%s\0%s\0' "${k}" "${map["${k}"]}" >> "${kv}"
     done
 
-    for ig in "${ignore_list[@]}"; do
-        find_cmd+=( -name "${ig}" -o )
-    done
-
+    for ig in "${ignore_list[@]}"; do find_cmd+=( -name "${ig}" -o ); done
     find_cmd+=( -false ")" -prune -o -type f ! -lname '*' -print0 )
 
-    while IFS= read -r -d '' f; do
-        any=1
-        break
-    done < <("${find_cmd[@]}")
-
-    (( any )) || return 0
+    while IFS= read -r -d '' f; do any=1; break; done < <("${find_cmd[@]}")
+    (( any )) || { rm -f "${kv}" 2>/dev/null || true; return 0; }
 
     "${find_cmd[@]}" | KV_FILE="${kv}" xargs -0 perl -0777 -i -pe '
         BEGIN {
@@ -44,106 +35,39 @@ replace_all () {
             our $re  = "";
 
             my $kv = $ENV{KV_FILE} // "";
-            open my $fh, "<", $kv or die "replace_all: cannot open kv file: $kv\n";
+            open my $fh, "<", $kv or die "kv open failed: $kv";
             local $/;
             my $buf = <$fh>;
             close $fh;
 
-            my @pairs = split(/\0/, $buf, -1);
-            pop @pairs if @pairs && $pairs[-1] eq "";
-            die "replace_all: kv mismatch\n" if @pairs % 2;
+            my @p = split(/\0/, $buf, -1);
+            pop @p if @p && $p[-1] eq "";
+            die "kv pairs mismatch\n" if @p % 2;
 
-            for ( my $i = 0; $i < @pairs; $i += 2 ) {
-                $map{$pairs[$i]} = $pairs[$i + 1];
+            for (my $i = 0; $i < @p; $i += 2) {
+                $map{$p[$i]} = $p[$i + 1];
             }
 
             my @keys = sort { length($b) <=> length($a) } keys %map;
             $re = @keys ? join("|", map { quotemeta($_) } @keys) : "";
         }
-
         if ( $re ne "" && index($_, "\0") == -1 ) {
             s/($re)/$map{$1}/g;
         }
-    ' || die "replace_all: replacement failed"
+    ' || { rm -f "${kv}" 2>/dev/null || true; die "replace failed"; }
 
 }
-rename_paths () {
+forge_placeholders () {
 
-    ensure_pkg find mv
-
-    local root="${1:-}" map_name="${2:-}" old="" new="" path="" rel="" out="" changed=1
-    [[ -n "${root}" && -d "${root}" ]] || die "rename_paths: root dir not found: ${root}"
-    [[ -n "${map_name}" ]] || die "rename_paths: missing map name"
-
-    local -n map="${map_name}"
-    ((${#map[@]})) || return 0
-
-    while (( changed )); do
-
-        changed=0
-
-        while IFS= read -r -d '' path; do
-
-            rel="${path#${root}/}"
-            [[ "${rel}" != "${path}" ]] || continue
-
-            out="${rel}"
-
-            for old in "${!map[@]}"; do
-                new="${map["${old}"]}"
-                [[ -n "${old}" ]] || continue
-                out="${out//${old}/${new}}"
-            done
-
-            [[ "${out}" == "${rel}" ]] && continue
-
-            mkdir -p -- "${root}/${out%/*}" || die "rename_paths: mkdir failed: ${root}/${out%/*}"
-
-            [[ -e "${root}/${out}" ]] && die "rename_paths: target already exists: ${root}/${out}"
-            mv -- "${path}" "${root}/${out}" || die "rename_paths: move failed: ${path} -> ${root}/${out}"
-
-            changed=1
-
-        done < <(find "${root}" -depth -mindepth 1 -print0)
-
-    done
-
-}
-default_branch () {
-
-    ensure_pkg git
-
-    local root="${1:-}" b=""
-    [[ -n "${root}" ]] || root="${PWD}"
-
-    if has git && [[ -e "${root}/.git" ]]; then
-
-        b="$(cd -- "${root}" && git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-        b="${b#origin/}"
-
-        [[ -n "${b}" ]] || b="$(cd -- "${root}" && git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-        [[ "${b}" == "HEAD" ]] && b=""
-
-    fi
-
-    [[ -n "${b}" ]] || b="main"
-    printf '%s\n' "${b}"
-
-}
-set_placeholders () {
-
-    source <(parse "$@" -- :root name alias user repo branch description discord_url docs_url site_url host)
-
-    [[ -n "${root}" && -d "${root}" ]] || die "set_placeholders: invalid root: ${root}"
-    cd -- "${root}" || die "set_placeholders: cannot cd to ${root}"
-
-    [[ -n "${name}" ]] || die "set_placeholders: missing name"
+    source <(parse "$@" -- :root :name alias user repo branch description discord_url docs_url site_url host)
 
     [[ -n "${repo}"   ]] || repo="${name}"
     [[ -n "${alias}"  ]] || alias="${name}"
-    [[ -n "${branch}" ]] || branch="$(default_branch "${root}")"
     [[ -n "${host}"   ]] || host="https://github.com"
     [[ "${host}" == *"://"* ]] || host="https://${host}"
+    [[ -n "${branch}" ]] || branch="$(git_default_branch "${root}")"
+
+    cd -- "${root}" || die "set_placeholders: cannot cd to ${root}"
 
     local -A ph_map=()
 
@@ -235,93 +159,19 @@ set_placeholders () {
 
     fi
 
-    rename_paths "${root}" ph_map
-    replace_all  "${root}" ph_map
+    forge_replace_all  "${root}" ph_map
 
 }
-set_git () {
+forge_init_git () {
 
-    source <(parse "$@" -- :root name repo branch)
+    source <(parse "$@" -- :root :name repo branch)
 
-    [[ -n "${root}" && -d "${root}" ]] || die "set_git: invalid root: ${root}"
     cd -- "${root}" || die "set_git: cannot cd to ${root}"
-
     cmd_init "${repo:-${name}}" "${kwargs[@]}"
 
 }
 
-copy_template () {
-
-    ensure_pkg mkdir find tar grep
-
-    local src="${1:-}" dest="${2:-}"
-    local -a tar_out=()
-
-    [[ -n "${src}"  && -d "${src}"  ]] || die "copy_template: source dir not found: ${src}"
-    [[ -n "${dest}" ]] || die "copy_template: missing dest"
-
-    mkdir -p -- "${dest}" || die "copy_template: cannot create dir: ${dest}"
-
-    [[ -n "$(find "${dest}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null || true)" ]] && die "copy_template: dest dir not empty: ${dest}"
-
-    tar_out=( tar -C "${dest}" -xf - )
-    ( tar --help 2>/dev/null || true ) | grep -q -- '--no-same-owner' && tar_out=( tar --no-same-owner -C "${dest}" -xf - )
-
-    tar -C "${src}" -cf - . | "${tar_out[@]}" || die "copy_template: copy failed: ${src} -> ${dest}"
-
-}
-config_target_dir () {
-
-    local group="${1:-}"
-
-    case "${group}" in
-        env|docs|license|format|lint|prettier|audit|coverage|safety) printf '%s\n' "" ;;
-        github)                                                      printf '%s\n' ".github" ;;
-        *)                                                           printf '%s\n' "" ;;
-    esac
-
-}
-copy_config_group () {
-
-    ensure_pkg mkdir find cp
-
-    local src_dir="${1:-}" dest_dir="${2:-}" group="${3:-}" sub="" f="" rel="" out="" target=""
-    [[ -d "${src_dir}" ]] || return 0
-    [[ -n "${dest_dir}" ]] || die "copy_config_group: missing dest dir"
-
-    sub="$(config_target_dir "${group}")"
-    target="${dest_dir}"
-    [[ -n "${sub}" ]] && target="${dest_dir}/${sub}"
-
-    while IFS= read -r -d '' f; do
-
-        rel="${f#${src_dir}/}"
-        out="${target}/${rel}"
-
-        [[ -e "${out}" ]] && continue
-
-        mkdir -p -- "${out%/*}" || die "copy_config_group: mkdir failed: ${out%/*}"
-        cp -p -- "${f}" "${out}" || die "copy_config_group: copy failed: ${f} -> ${out}"
-
-    done < <(find "${src_dir}" -type f -print0)
-
-}
-
-normalize_name () {
-
-    local name="${1:-}"
-
-    [[ -n "${name}" ]] || die "normalize_name: missing name"
-
-    name="${name##*/}"
-    name="${name// /-}"
-    name="${name//_/-}"
-    name="${name,,}"
-
-    printf '%s\n' "${name}"
-
-}
-resolve_name () {
+forge_resolve_name () {
 
     local name="${1:-}"
 
@@ -330,72 +180,159 @@ resolve_name () {
     name="${name//_/-}"
     name="${name,,}"
 
-    name="${name//workspace/ws}"
-    name="${name//monorepo/ws}"
-    name="${name//workspaces/ws}"
-    name="${name//crate/lib}"
-    name="${name//library/lib}"
-    name="${name//binary/empty}"
-    name="${name//bin/empty}"
-
-    [[ "${name}" == "app"        ]] && name="empty"
-    [[ "${name}" == "exe"        ]] && name="empty"
-    [[ "${name}" == "cli"        ]] && name="empty"
-    [[ "${name}" == "basic"      ]] && name="empty"
-    [[ "${name}" == "minimal"    ]] && name="empty"
-    [[ "${name}" == "workspace"  ]] && name="workspace"
+    name="${name//-app/-pure}"
+    name="${name//-project/-pure}"
+    name="${name//-framework/-web}"
+    name="${name//-package/-lib}"
+    name="${name//-crate/-lib}"
+    name="${name//-workspace/-ws}"
+    name="${name//-monorepo/-ws}"
 
     printf '%s\n' "${name}"
 
 }
-resolve_path () {
+forge_display_name () {
 
-    local root="${1:-}" raw="${2:-}" name=""
-    [[ -n "${root}" && -d "${root}" ]] || die "resolve_path: invalid root: ${root}"
+    local name="${1:-}"
+    local first="${name%%-*}"
 
-    name="$(resolve_name "${raw}")"
+    [[ "${name}" == *-pure ]] || { printf '%s\n' "${name}"; return 0; }
+    printf '%s\n' "${first}"
 
-    [[ -d "${root}/${name}" ]] && {
-        printf '%s\n' "${root}/${name}"
-        return 0
-    }
+}
+forge_resolve_dest () {
 
-    case "${name}" in
-        empty|bin|app|exe|cli|minimal|basic)
-            [[ -d "${root}/empty" ]] && { printf '%s\n' "${root}/empty" ; return 0 ; }
-            ;;
-        lib|crate|library)
-            [[ -d "${root}/lib" ]] && { printf '%s\n' "${root}/lib" ; return 0 ; }
-            ;;
-        ws|workspace|monorepo|workspaces)
-            [[ -d "${root}/workspace" ]] && { printf '%s\n' "${root}/workspace" ; return 0 ; }
-            ;;
-    esac
+    local dir="${1:-}" name="${2:-}"
 
+    dir="${dir:-${PROJECTS_DIR:-${WORKSPACE_DIR:-${PWD}}}}"
+    dir="${dir/#\~/${HOME}}"
+    dir="${dir%/}"
+
+    ensure_dir "${dir}"
+    dir="${dir}/${name}"
+
+    printf '%s\n' "${dir}"
+
+}
+forge_resolve_path () {
+
+    local root="${1:-}" name="${2:-}" base="" try=""
+
+    for base in "pure" "web" "lib" "ws"; do
+
+        try="${base}/${name}"
+        [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+
+        [[ "${name}" == *-"${base}" ]] || continue
+
+        try="${base}/${name%-${base}}"
+        [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+
+    done
+
+    printf '%s\n' ""
     return 1
 
 }
-resolve_config () {
+
+forge_copy_template () {
+
+    ensure_pkg mkdir find tar grep 1>&2
+
+    local src="${1:-}" dest="${2:-}"
+    local -a tar_out=()
+
+    [[ -e "${src}" ]] || die "cannot resolve template src: ${src}"
+    [[ -e "${dest}" ]] && die "dest path already exists: ${dest}"
+
+    mkdir -p -- "${dest}" 2>/dev/null || die "cannot create dir: ${dest}"
+    [[ -n "$(find "${dest}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null || true)" ]] && die "dest dir not empty: ${dest}"
+
+    tar_out=( tar -C "${dest}" -xf - )
+    ( tar --help 2>/dev/null || true ) | grep -q -- '--no-same-owner' && tar_out=( tar --no-same-owner -C "${dest}" -xf - )
+
+    tar -C "${src}" -cf - . | "${tar_out[@]}" || die "copy failed: ${src} -> ${dest}"
+
+}
+forge_copy_global_config () {
+
+    local src_dir="${1:-}" dest_dir="${2:-}" path="" base="" out=""
+    [[ -d "${src_dir}" ]] || return 0
+
+    for path in "${src_dir}"/* "${src_dir}"/.[!.]* "${src_dir}"/..?*; do
+
+        [[ -e "${path}" ]] || continue
+
+        base="${path##*/}"
+        out="${dest_dir}/${base}"
+
+        if [[ -f "${path}" ]]; then
+
+            [[ -e "${out}" ]] && continue
+
+            mkdir -p -- "${out%/*}" || die "Failed mkdir ${out}" 2
+            cp -f -- "${path}" "${out}" || die "Failed copying ${path}" 2
+
+        elif [[ -d "${path}" ]]; then
+
+            [[ "${base}" == .* ]] || continue
+            [[ -e "${out}" ]] && continue
+
+            mkdir -p -- "${out}" || die "Failed mkdir ${out}" 2
+            cp -R -- "${path}/." "${out}" || die "Failed copying dir ${path}" 2
+
+        fi
+
+    done
+
+}
+forge_copy_custom_config () {
+
+    local src_dir="${1:-}" dest_dir="${2:-}" rel="" out="" f=""
+    [[ -d "${src_dir}" ]] || return 0
+
+    while IFS= read -r -d '' f; do
+
+        rel="${f#${src_dir}/}"
+        out="${dest_dir}/${rel}"
+
+        [[ -e "${out}" ]] && continue
+
+        mkdir -p -- "${out%/*}" || die "Failed mkdir ${out}" 2
+        cp -p -- "${f}" "${out}" || die "Failed copying ${f}" 2
+
+    done < <(find "${src_dir}" -type f -print0)
+
+}
+forge_copy_config () {
 
     source <(parse "$@" -- \
-        :config_dir :dest_dir \
-        env:bool=true docs:bool=true license:bool=true github:bool=true \
-        format:bool=true lint:bool=true prettier:bool=true \
-        audit:bool=true coverage:bool=true safety:bool=true \
+        :name :config_dir :dest_dir \
+        env:bool=true docs:bool=true license:bool=true pretty:bool=true safety:bool=true \
+        format:bool=true lint:bool=true audit:bool=true coverage:bool=true github:bool=true docker:bool=false \
     )
 
-    [[ -n "${config_dir}" && -d "${config_dir}" ]] || return 0
-    [[ -n "${dest_dir}"   && -d "${dest_dir}"   ]] || die "resolve_config: invalid dest dir: ${dest_dir}"
+    [[ -e "${config_dir}" ]] || die "cannot resolve config src: ${config_dir}"
 
-    local group=""
-    local -a groups=( env docs license github format lint prettier audit coverage safety )
+    local path="" base="" cfg=""
+    local -a configs=()
 
-    for group in "${groups[@]}"; do
+    for path in "${config_dir}"/* "${config_dir}"/.[!.]* "${config_dir}"/..?*; do
 
-        declare -n _flag="${group}" || continue
-        (( _flag )) || continue
+        base="${path##*/}"
 
-        copy_config_group "${config_dir}/${group}" "${dest_dir}" "${group}"
+        [[ -d "${path}" ]] || continue
+        [[ "${base}" == "." || "${base}" == ".." ]] && continue
+
+        configs+=( "${base}" )
+
+    done
+    for cfg in "${configs[@]}"; do
+
+        declare -n _flag="${cfg}" 2>/dev/null && (( ! _flag )) && continue
+
+        forge_copy_custom_config "${config_dir}/${cfg}/${name%%-*}" "${dest_dir}"
+        forge_copy_global_config "${config_dir}/${cfg}" "${dest_dir}"
 
     done
 

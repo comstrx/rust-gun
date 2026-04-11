@@ -44,6 +44,7 @@ load_walk_modules () {
         skip=0
 
         for ex in "$@"; do
+
             [[ -n "${ex}" ]] || continue
             ex="${ex%/}"
 
@@ -51,6 +52,7 @@ load_walk_modules () {
                 skip=1
                 break
             fi
+
         done
 
         (( skip )) && continue
@@ -122,9 +124,7 @@ load_find_usage () {
         "cmd_${mod}_help" \
         "cmd_help_${mod}"
     do
-
         declare -F "${fn}" >/dev/null 2>&1 && { printf '%s\n' "${fn}"; return 0; }
-
     done
 
     return 1

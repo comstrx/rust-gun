@@ -4,6 +4,7 @@
 readonly ENTRY_LOADED=1
 
 readonly ENTRY_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)"
+readonly TEMPLATE_DIR="${ENTRY_DIR}/../template"
 readonly MODULE_DIR="${ENTRY_DIR}/../module"
 readonly STACK_DIR="${MODULE_DIR}/stack"
 

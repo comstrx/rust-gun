@@ -1,40 +1,49 @@
 
 cmd_new () {
 
-    source <(parse "$@" -- :template name dir placeholders:bool=true git:bool=true)
+    source <(parse "$@" -- :template name dest placeholders:bool=true git:bool=true)
 
-    local root="${ROOT_DIR:-}/template"
-    local cdir="${root}/config"
-    local src="" template_key=""
+    template="$(forge_resolve_name "${template}")"
 
-    [[ -d "${root}" ]] || die "cmd_new: template root not found: ${root}"
+    name="${name:-"$(forge_display_name "${template}")"}"
+    dest="$(forge_resolve_dest "${dest}" "${name}")"
 
-    template_key="$(resolve_name "${template}")"
-    src="$(resolve_path "${root}" "${template_key}")"
-    [[ -d "${src}" ]] || die "cmd_new: template not found: ${template}"
+    local root="${TEMPLATE_DIR:-}"
+    local conf="${root}/conf"
 
-    dir="${dir:-${PROJECTS_DIR:-${WORKSPACE_DIR:-${PWD}}}}"
-    dir="${dir/#\~/${HOME}}"
-    dir="${dir%/}"
+    local src="$(forge_resolve_path "${root}" "${template}")"
 
-    case "${template_key}" in
-        empty)     [[ -n "${name}" ]] || name="rust-app" ;;
-        lib)       [[ -n "${name}" ]] || name="rust-lib" ;;
-        ws)        [[ -n "${name}" ]] || name="rust-workspace" ;;
-        workspace) [[ -n "${name}" ]] || name="rust-workspace" ;;
-        *)         [[ -n "${name}" ]] || name="${template_key}" ;;
-    esac
+    forge_copy_template "${src}" "${dest}"
 
-    name="$(normalize_name "${name}")"
+    forge_copy_config "${template}" "${conf}" "${dest}" "${kwargs[@]}"
 
-    [[ "${dir##*/}" == "${name}" ]] || dir="${dir}/${name}"
+    (( placeholders )) && forge_placeholders "${dest}" "${name}" "${name}" "${kwargs[@]}"
+    (( git ))          && forge_init_git "${dest}" "${name}" "${name}" "${kwargs[@]}"
 
-    copy_template "${src}" "${dir}"
-    resolve_config config_dir="${cdir}" dest_dir="${dir}" "${kwargs[@]}"
+    success "OK: ${name} was successfully set up at ${dest}"
 
-    (( placeholders )) && set_placeholders root="${dir}" name="${name}" repo="${name}" "${kwargs[@]}"
-    (( git ))          && set_git          root="${dir}" name="${name}" repo="${name}" "${kwargs[@]}"
+}
+cmd_new_project () {
 
-    success "OK: ${name} was successfully set up at ${dir}"
+    source <(parse "$@" -- :template)
+    cmd_new "${template}-pure" "${kwargs[@]}"
+
+}
+cmd_new_bin () {
+
+    source <(parse "$@" -- :template)
+    cmd_new "${template}-pure" "${kwargs[@]}"
+
+}
+cmd_new_lib () {
+
+    source <(parse "$@" -- :template)
+    cmd_new "${template}-lib" "${kwargs[@]}"
+
+}
+cmd_new_ws () {
+
+    source <(parse "$@" -- :template)
+    cmd_new "${template}-ws" "${kwargs[@]}"
 
 }
