@@ -41,4 +41,4 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
 
-        run: bash ./scripts/run.sh notify --platforms telegram slack discord webhook
+        run: bash ./entry/run.sh notify

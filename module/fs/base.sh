@@ -2,7 +2,7 @@
 fs_new_dir () {
 
     ensure_pkg mkdir chmod
-    source <(parse "$@" -- src mode)
+    source <(parse "$@" -- :src mode)
 
     run mkdir -p -- "${src}"
     [[ -n "${mode}" ]] && run chmod -- "${mode}" "${src}"
@@ -10,8 +10,8 @@ fs_new_dir () {
 }
 fs_new_file () {
 
-    ensure_pkg mkdir chmod touch
-    source <(parse "$@" -- src mode)
+    ensure_pkg mkdir chmod touch dirname
+    source <(parse "$@" -- :src mode)
 
     run mkdir -p -- "$(dirname -- "${src}")"
     run touch -- "${src}"
@@ -19,24 +19,9 @@ fs_new_file () {
     [[ -n "${mode}" ]] && run chmod -- "${mode}" "${src}"
 
 }
-fs_file_exists () {
-
-    [[ -f "${1:-}" ]]
-
-}
-fs_dir_exists () {
-
-    [[ -d "${1:-}" ]]
-
-}
-fs_path_exists () {
-
-    [[ -e "${1:-}" || -L "${1:-}" ]]
-
-}
 fs_path_type () {
 
-    local p="${1:-}" type="unknow"
+    local p="${1:-}" type="unknown"
 
     [[ -e "${p}" ]] && type="other"
     [[ -d "${p}" ]] && type="dir"
@@ -79,33 +64,25 @@ fs_file_type () {
 
 }
 
-fs_capitalize_path () {
+fs_file_exists () {
 
-    local p="${1:-}" lead="" out="" seg="" trailing=0
-    local -a parts=()
-
-    [[ "${p}" == /* ]] && lead="/"
-    [[ "${p}" == */ && "${p}" != "/" ]] && trailing=1
-
-    p="${p#/}"
-    IFS='/' read -r -a parts <<< "${p}"
-
-    for seg in "${parts[@]}"; do
-        [[ -n "${seg}" ]] || continue
-        [[ -n "${out}" ]] && out+="/${seg^}" || out="${seg^}"
-    done
-
-    if [[ -n "${lead}" ]]; then
-        [[ -n "${out}" ]] && out="/${out}" || out="/"
-    fi
-
-    (( trailing )) && out+="/"
-    printf '%s\n' "${out}"
+    [[ -f "${1:-}" ]]
 
 }
+fs_dir_exists () {
+
+    [[ -d "${1:-}" ]]
+
+}
+fs_path_exists () {
+
+    [[ -e "${1:-}" || -L "${1:-}" ]]
+
+}
+
 fs_copy_path () {
 
-    ensure_pkg cp mkdir
+    ensure_pkg cp mkdir dirname
     source <(parse "$@" -- :src :dest)
 
     run mkdir -p -- "$(dirname -- "${dest}")"
@@ -120,7 +97,7 @@ fs_copy_path () {
 }
 fs_move_path () {
 
-    ensure_pkg mv mkdir
+    ensure_pkg mv mkdir dirname
     source <(parse "$@" -- :src :dest)
 
     run mkdir -p -- "$(dirname -- "${dest}")"
@@ -132,7 +109,7 @@ fs_remove_path () {
     ensure_pkg rm find
     source <(parse "$@" -- :src clear:bool)
 
-    [[ "${src}" == "/" || "${src}" == "." ]] && die "Refuse to delete '/' '.'"
+    [[ "${src}" == "/" || "${src}" == "." || "${src}" == ".." ]] && die "Refuse to delete '/' '.' '..'"
 
     if (( clear )); then
 
@@ -147,10 +124,10 @@ fs_remove_path () {
 }
 fs_trash_path () {
 
-    ensure_pkg mkdir mv date
+    ensure_pkg mkdir mv date basename
     source <(parse "$@" -- :src trash_dir)
 
-    [[ "${src}" == "/" || "${src}" == "." ]] && die "Refuse to trash '/' '.'"
+    [[ "${src}" == "/" || "${src}" == "." || "${src}" == ".." ]] && die "Refuse to trash '/' '.' '..'"
     local dir=""
 
     if [[ -n "${trash_dir}" ]]; then dir="${trash_dir%/}"
@@ -170,7 +147,7 @@ fs_trash_path () {
 }
 fs_link_path () {
 
-    ensure_pkg mkdir ln
+    ensure_pkg mkdir ln dirname
     source <(parse "$@" -- :src :dest)
 
     run mkdir -p -- "$(dirname -- "${dest}")"
@@ -226,27 +203,46 @@ fs_synced_path () {
 
 fs_compress_path () {
 
-    ensure_pkg mkdir
+    ensure_pkg mkdir dirname basename tar
     source <(parse "$@" -- src dest name type=zip exclude:list)
 
     [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
     [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
 
-    local base="${src%/}"
+    local base="${src%/}" kind="${type,,}" ext="" i=""
     local dir="$(dirname -- "${base}")"
     local entry="$(basename -- "${base}")"
+
     name="${name:-"${entry}"}"
 
-    [[ -n "${dest}" ]] || dest="${PWD}/${name}.${type}"
-    [[ "${dest}" == /* ]] || dest="${PWD}/${dest#./}"
+    if [[ -z "${dest}" ]]; then
 
+        case "${kind}" in
+            zip)           dest="${PWD}/${name}.zip" ;;
+            rar)           dest="${PWD}/${name}.rar" ;;
+            7z)            dest="${PWD}/${name}.7z" ;;
+            tar)           dest="${PWD}/${name}.tar" ;;
+            tgz|gz)        dest="${PWD}/${name}.tar.gz" ;;
+            txz|xz)        dest="${PWD}/${name}.tar.xz" ;;
+            tbz2|bz2)      dest="${PWD}/${name}.tar.bz2" ;;
+            tzst|zst|zstd) dest="${PWD}/${name}.tar.zst" ;;
+            *)             dest="${PWD}/${name}.${type}" ;;
+        esac
+
+    fi
+
+    [[ "${dest}" == /* ]] || dest="${PWD}/${dest#./}"
     run mkdir -p -- "$(dirname -- "${dest}")"
 
-    local ext="${dest,,}" i=""
-    local -a cmd=() ignore_list=( .git .next .env .venv .vscode node_modules build target vendor __pycache__ )
-    ignore_list+=( "${exclude[@]-}" )
+    ext="${dest,,}"
 
-    if [[ "${type,,}" == "zip" || "${ext}" == *.zip ]]; then
+    local -a cmd=()
+    local -a ignores=()
+
+    mapfile -t ignores < <(ignore_list)
+    ignores+=( "${exclude[@]-}" )
+
+    if [[ "${kind}" == "zip" || "${ext}" == *.zip ]]; then
 
         ensure_pkg zip
 
@@ -254,7 +250,7 @@ fs_compress_path () {
         cmd+=( "${kwargs[@]}" )
         cmd+=( "${dest}" "${entry}" )
 
-        for i in "${ignore_list[@]-}"; do
+        for i in "${ignores[@]-}"; do
             [[ -n "${i}" ]] || continue
             cmd+=( -x "*${i}*" )
         done
@@ -265,7 +261,7 @@ fs_compress_path () {
         return 0
 
     fi
-    if [[ "${type,,}" == "rar" || "${ext}" == *.rar ]]; then
+    if [[ "${kind}" == "rar" || "${ext}" == *.rar ]]; then
 
         ensure_pkg rar
 
@@ -273,7 +269,7 @@ fs_compress_path () {
         cmd+=( "${kwargs[@]}" )
         cmd+=( "${dest}" "${entry}" )
 
-        for i in "${ignore_list[@]-}"; do
+        for i in "${ignores[@]-}"; do
             [[ -n "${i}" ]] || continue
             cmd+=( "-x*${i}*" )
         done
@@ -284,7 +280,7 @@ fs_compress_path () {
         return 0
 
     fi
-    if [[ "${type,,}" == "7z" || "${ext}" == *.7z ]]; then
+    if [[ "${kind}" == "7z" || "${ext}" == *.7z ]]; then
 
         ensure_pkg 7z
 
@@ -292,7 +288,7 @@ fs_compress_path () {
         cmd+=( "${kwargs[@]}" )
         cmd+=( "${dest}" "${entry}" )
 
-        for i in "${ignore_list[@]-}"; do
+        for i in "${ignores[@]-}"; do
             [[ -n "${i}" ]] || continue
             cmd+=( "-xr!*${i}*" )
         done
@@ -303,17 +299,48 @@ fs_compress_path () {
         return 0
 
     fi
+    if [[ "${kind}" == "tzst" || "${kind}" == "zst" || "${kind}" == "zstd" || "${ext}" == *.tar.zst || "${ext}" == *.tzst ]]; then
 
-    ensure_pkg tar
+        ensure_pkg zstd
 
-    if [[ "${ext}" == *.tar.gz || "${ext}" == *.tgz ]]; then cmd=( tar -czf "${dest}" )
-    elif [[ "${ext}" == *.tar.xz || "${ext}" == *.txz ]]; then cmd=( tar -cJf "${dest}" )
-    elif [[ "${ext}" == *.tar.bz2 || "${ext}" == *.tbz2 ]]; then cmd=( tar -cjf "${dest}" )
-    elif [[ "${ext}" == *.tar ]]; then cmd=( tar -cf "${dest}" )
+        if tar --help 2>/dev/null | grep -q -- '--zstd'; then
+
+            cmd=( tar --zstd -cf "${dest}" )
+
+            for i in "${ignores[@]-}"; do
+                [[ -n "${i}" ]] || continue
+                cmd+=( --exclude "${i}" )
+            done
+
+            run "${cmd[@]}" "${kwargs[@]}" -C "${dir}" -- "${entry}"
+
+        else
+
+            local -a tar_cmd=( tar -cf - )
+
+            for i in "${ignores[@]-}"; do
+                [[ -n "${i}" ]] || continue
+                tar_cmd+=( --exclude "${i}" )
+            done
+
+            tar_cmd+=( "${kwargs[@]}" -C "${dir}" -- "${entry}" )
+            ( "${tar_cmd[@]}" | zstd -T0 -q -o "${dest}" ) || die "Failed to create zstd archive: ${dest}"
+
+        fi
+
+        printf '%s\n' "${dest}"
+        return 0
+
+    fi
+
+    if [[ "${kind}" == "tgz" || "${kind}" == "gz" || "${ext}" == *.tar.gz || "${ext}" == *.tgz ]]; then cmd=( tar -czf "${dest}" )
+    elif [[ "${kind}" == "txz" || "${kind}" == "xz" || "${ext}" == *.tar.xz || "${ext}" == *.txz ]]; then cmd=( tar -cJf "${dest}" )
+    elif [[ "${kind}" == "tbz2" || "${kind}" == "bz2" || "${ext}" == *.tar.bz2 || "${ext}" == *.tbz2 ]]; then cmd=( tar -cjf "${dest}" )
+    elif [[ "${kind}" == "tar" || "${ext}" == *.tar ]]; then cmd=( tar -cf "${dest}" )
     else die "Unsupported archive type: ${dest}"
     fi
 
-    for i in "${ignore_list[@]-}"; do
+    for i in "${ignores[@]-}"; do
         [[ -n "${i}" ]] || continue
         cmd+=( --exclude "${i}" )
     done
@@ -324,14 +351,16 @@ fs_compress_path () {
 }
 fs_extract_path () {
 
-    ensure_pkg mkdir
+    ensure_pkg mkdir tar
     source <(parse "$@" -- :src dest strip:int)
 
-    [[ -e "${src}" ]] || die "Archive not found: ${src}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Archive not found: ${src}"
     [[ -n "${dest}" ]] || dest="."
 
     run mkdir -p -- "${dest}"
+
     local ext="${src,,}"
+    local -a cmd=( tar )
 
     if [[ "${ext}" == *.zip ]]; then
 
@@ -360,35 +389,60 @@ fs_extract_path () {
         return 0
 
     fi
+    if [[ "${ext}" == *.tar.zst || "${ext}" == *.tzst ]]; then
 
-    ensure_pkg tar
-    local -a cmd=( tar )
+        ensure_pkg zstd
+
+        if tar --help 2>/dev/null | grep -q -- '--zstd'; then
+
+            cmd+=( --zstd -xf )
+            (( strip > 0 )) && cmd+=( --strip-components "${strip}" )
+
+            run "${cmd[@]}" "${kwargs[@]}" -- "${src}" -C "${dest}"
+
+        else
+
+            local -a tar_cmd=( tar -xf - -C "${dest}" )
+
+            (( strip > 0 )) && tar_cmd+=( --strip-components "${strip}" )
+            tar_cmd+=( "${kwargs[@]}" )
+
+            ( zstd -dc -- "${src}" | "${tar_cmd[@]}" ) || die "Failed to extract zstd archive: ${src}"
+
+        fi
+
+        printf '%s\n' "${dest}"
+        return 0
+
+    fi
 
     if [[ "${ext}" == *.tar.gz || "${ext}" == *.tgz ]]; then cmd+=( -xzf )
     elif [[ "${ext}" == *.tar.xz || "${ext}" == *.txz ]]; then cmd+=( -xJf )
     elif [[ "${ext}" == *.tar.bz2 || "${ext}" == *.tbz2 ]]; then cmd+=( -xjf )
-    else cmd+=( -xf )
+    elif [[ "${ext}" == *.tar ]]; then cmd+=( -xf )
+    else die "Unsupported archive type: ${src}"
     fi
 
     (( strip > 0 )) && cmd+=( --strip-components "${strip}" )
-    run "${cmd[@]}" "${kwargs[@]}" -- "${src}" -C "${dest}"
 
+    run "${cmd[@]}" "${kwargs[@]}" -- "${src}" -C "${dest}"
     printf '%s\n' "${dest}"
 
 }
 fs_backup_path () {
 
-    ensure_pkg date
+    ensure_pkg date basename
     source <(parse "$@" -- src dest name type=zip archive_dir="${ARCHIVE_DIR:-}")
 
     [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
+
     local base_name="$(basename -- "${src%/}")" ts="$(date +'%Y-%m-%d_%H-%M-%S')" _dest_=""
 
-    [[ "${archive_dir}" == /mnt/* ]] && base_name="$(fs_capitalize_path "${base_name}")"
     [[ -n "${name}" ]] && _dest_="${dest:-${base_name}}/${name}" || _dest_="${dest:-"${base_name}/${ts}.${type:-zip}"}"
     [[ -n "${archive_dir}" && "${_dest_}" != /* && "${_dest_}" != *:* ]] && dest="${archive_dir%/}/${_dest_}" || dest="${_dest_}"
 
     fs_compress_path "${src}" "${dest}" "${name}" "${type}" "${kwargs[@]}"
+
     success "OK: ${src} archived at ${dest}"
 
 }
@@ -402,8 +456,7 @@ fs_sync_path () {
     local rel="${src#${src_dir%/}/}"
     [[ "${rel}" == "${src}" ]] && rel="${src#/}"
 
-    if [[ -z "${dest}" && "${sync_dir}" == /mnt/* ]]; then dest="${sync_dir%/}/$(fs_capitalize_path "${rel}")"
-    elif [[ -z "${dest}" && -n "${sync_dir}" ]]; then dest="${sync_dir%/}/${rel}"
+    if [[ -z "${dest}" && -n "${sync_dir}" ]]; then dest="${sync_dir%/}/${rel}"
     elif [[ -z "${dest}" ]]; then dest="${rel}"
     fi
 
@@ -417,13 +470,20 @@ fs_sync_path () {
     if (( ignore )); then
 
         local i=""
-        local -a ignore_list=( .git .next .env .venv .vscode node_modules build target vendor __pycache__ )
-        ignore_list+=( "${exclude[@]-}" )
-        for i in "${ignore_list[@]}"; do [[ -n "${i}" ]] || continue; cmd+=( --exclude "${i}" ); done
+        local -a ignores=()
+
+        mapfile -t ignores < <(ignore_list)
+        ignores+=( "${exclude[@]-}" )
+
+        for i in "${ignores[@]}"; do
+            [[ -n "${i}" ]] || continue
+            cmd+=( --exclude "${i}" )
+        done
 
     fi
 
     run "${cmd[@]}" "${kwargs[@]}" -- "${src}" "${dest}"
+
     success "OK: ${src} synced at ${dest}"
 
 }

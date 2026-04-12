@@ -23,6 +23,7 @@ cmd_file_type () {
     fs_file_exists "${src}" && fs_file_type "${src}" "${kwargs[@]}"
 
 }
+
 cmd_copy () {
 
     source <(parse "$@" -- :src :dest)
@@ -35,6 +36,13 @@ cmd_move () {
     fs_path_exists "${src}" && fs_move_path "${src}" "${dest}" "${kwargs[@]}"
 
 }
+cmd_link () {
+
+    source <(parse "$@" -- :src :dest)
+    fs_path_exists "${src}" && fs_link_path "${src}" "${dest}" "${kwargs[@]}"
+
+}
+
 cmd_remove () {
 
     source <(parse "$@" -- :src)
@@ -55,12 +63,7 @@ cmd_clear () {
     fs_file_exists "${src}" && : > "${src}"
 
 }
-cmd_link () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_link_path "${src}" "${dest}" "${kwargs[@]}"
-
-}
 cmd_stats () {
 
     source <(parse "$@" -- :src)
@@ -79,10 +82,17 @@ cmd_synced () {
     fs_path_exists "${src}" && fs_synced_path "${src}" "${dest}" "${kwargs[@]}"
 
 }
+
 cmd_compress () {
 
     source <(parse "$@" -- src)
     fs_path_exists "${src:-${PWD}}" && fs_compress_path "${src}" "${kwargs[@]}"
+
+}
+cmd_extract () {
+
+    source <(parse "$@" -- :src dest)
+    fs_path_exists "${src}" && fs_extract_path "${src}" "${dest}" "${kwargs[@]}"
 
 }
 cmd_backup () {

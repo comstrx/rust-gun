@@ -88,6 +88,41 @@ notify_message () {
         "==>"
 
 }
+
+notify_has_telegram () {
+
+    local token="${1:-}" chat="${2:-}"
+
+    [[ -n "${token}" ]] || token="${TELEGRAM_TOKEN:-${TOKEN:-}}"
+    [[ -n "${chat}"  ]] || chat="${TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT:-${CHAT_ID:-${CHAT:-}}}}"
+    [[ -n "${token}" && -n "${chat}" ]]
+
+}
+notify_has_slack () {
+
+    local webhook="${1:-}"
+
+    [[ -n "${webhook}" ]] || webhook="${SLACK_WEBHOOK_URL:-${SLACK_WEBHOOK:-${SLACK_URL:-}}}"
+    [[ -n "${webhook}" ]]
+
+}
+notify_has_discord () {
+
+    local webhook="${1:-}"
+
+    [[ -n "${webhook}" ]] || webhook="${DISCORD_WEBHOOK_URL:-${DISCORD_WEBHOOK:-${DISCORD_URL:-}}}"
+    [[ -n "${webhook}" ]]
+
+}
+notify_has_webhook () {
+
+    local webhook="${1:-}"
+
+    [[ -n "${webhook}" ]] || webhook="${WEBHOOK_URL:-${WEBHOOK:-}}"
+    [[ -n "${webhook}" ]]
+
+}
+
 notify_telegram () {
 
     ensure_pkg curl
@@ -101,8 +136,11 @@ notify_telegram () {
     [[ -n "${token}" ]] || die "notify: missing telegram token"
     [[ -n "${chat}"  ]] || die "notify: missing telegram chat"
 
-    local -a payload=( -d "chat_id=${chat}" --data-urlencode "text=${msg}" -d "disable_web_page_preview=true" )
-    curl "${curl_args[@]}" -X POST "https://api.telegram.org/bot${token}/sendMessage" "${payload[@]}" >/dev/null 2>&1 || return 1
+    curl "${curl_args[@]}" -X POST \
+        "https://api.telegram.org/bot${token}/sendMessage" \
+        --data-urlencode "chat_id=${chat}" \
+        --data-urlencode "text=${msg}" \
+        --data-urlencode "disable_web_page_preview=true" >/dev/null 2>&1 || return 1
 
 }
 notify_slack () {
@@ -110,13 +148,17 @@ notify_slack () {
     ensure_pkg curl jq
 
     local -n curl_args="${1}"
-    local webhook="${2:-}" msg="${3:-}"
+    local webhook="${2:-}" msg="${3:-}" payload=""
 
     [[ -n "${webhook}" ]] || webhook="${SLACK_WEBHOOK_URL:-${SLACK_WEBHOOK:-${SLACK_URL:-}}}"
-    [[ -n "${webhook}" ]] || die "notify_slack: missing slack webhook"
+    [[ -n "${webhook}" ]] || die "notify: missing slack webhook"
 
-    local -a payload=( --data "$(jq -cn --arg t "${msg}" '{text:$t}')" "${webhook}" )
-    curl "${curl_args[@]}" -X POST -H "Content-Type: application/json" "${payload[@]}" >/dev/null 2>&1 || return 1
+    payload="$(jq -cn --arg t "${msg}" '{text:$t}')" || return 1
+
+    printf '%s' "${payload}" | curl "${curl_args[@]}" -X POST \
+        -H "Content-Type: application/json" \
+        --data-binary @- \
+        "${webhook}" >/dev/null 2>&1 || return 1
 
 }
 notify_discord () {
@@ -124,13 +166,17 @@ notify_discord () {
     ensure_pkg curl jq
 
     local -n curl_args="${1}"
-    local webhook="${2:-}" msg="${3:-}"
+    local webhook="${2:-}" msg="${3:-}" payload=""
 
     [[ -n "${webhook}" ]] || webhook="${DISCORD_WEBHOOK_URL:-${DISCORD_WEBHOOK:-${DISCORD_URL:-}}}"
-    [[ -n "${webhook}" ]] || die "notify_discord: missing discord webhook"
+    [[ -n "${webhook}" ]] || die "notify: missing discord webhook"
 
-    local -a payload=( --data "$(jq -cn --arg t "${msg}" '{content:$t}')" "${webhook}" )
-    curl "${curl_args[@]}" -X POST -H "Content-Type: application/json" "${payload[@]}" >/dev/null 2>&1 || return 1
+    payload="$(jq -cn --arg t "${msg}" '{content:$t}')" || return 1
+
+    printf '%s' "${payload}" | curl "${curl_args[@]}" -X POST \
+        -H "Content-Type: application/json" \
+        --data-binary @- \
+        "${webhook}" >/dev/null 2>&1 || return 1
 
 }
 notify_webhook () {
@@ -138,12 +184,16 @@ notify_webhook () {
     ensure_pkg curl jq
 
     local -n curl_args="${1}"
-    local webhook="${2:-}" msg="${3:-}"
+    local webhook="${2:-}" msg="${3:-}" payload=""
 
     [[ -n "${webhook}" ]] || webhook="${WEBHOOK_URL:-${WEBHOOK:-}}"
-    [[ -n "${webhook}" ]] || die "notify_webhook: missing webhook url"
+    [[ -n "${webhook}" ]] || die "notify: missing webhook url"
 
-    local -a payload=( --data "$(jq -cn --arg t "${msg}" '{text:$t}')" "${webhook}" )
-    curl "${curl_args[@]}" -X POST -H "Content-Type: application/json" "${payload[@]}" >/dev/null 2>&1 || return 1
+    payload="$(jq -cn --arg t "${msg}" '{text:$t}')" || return 1
+
+    printf '%s' "${payload}" | curl "${curl_args[@]}" -X POST \
+        -H "Content-Type: application/json" \
+        --data-binary @- \
+        "${webhook}" >/dev/null 2>&1 || return 1
 
 }

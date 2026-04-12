@@ -11,6 +11,9 @@ cmd_notify () {
 
     local msg="${message:-"$(notify_message "${status}" "${title}")"}"
 
+    local p=""
+    local -a plats=() failed=()
+
     local -a args=(
         -fsS
         --connect-timeout "${timeout}"
@@ -21,29 +24,31 @@ cmd_notify () {
         --retry-connrefused
     )
 
-    local -a plats=() failed=()
-    local  p=""
-
     if (( ${#platform[@]} )); then plats=( "${platform[@]}" )
     elif (( ${#platforms[@]} )); then plats=( "${platforms[@]}" )
-    else plats=( telegram )
+    else
+        notify_has_telegram "${telegram_token:-${token}}" "${telegram_chat:-${chat}}" && plats+=( telegram )
+        notify_has_slack    "${slack_webhook:-${webhook:-${url:-}}}"                  && plats+=( slack )
+        notify_has_discord  "${discord_webhook:-${webhook:-${url:-}}}"                && plats+=( discord )
+        notify_has_webhook  "${webhook_url:-${webhook:-${url:-}}}"                    && plats+=( webhook )
     fi
+
+    (( ${#plats[@]} )) || die "notify: no configured notification platform found"
 
     for p in "${plats[@]}"; do
 
         case "${p,,}" in
             telegram) notify_telegram args "${telegram_token:-${token}}" "${telegram_chat:-${chat}}" "${msg}" || failed+=( telegram ) ;;
-            slack)    notify_slack    args "${slack_webhook:-${webhook:-${url:-}}}" "${msg}" || failed+=( slack ) ;;
-            discord)  notify_discord  args "${discord_webhook:-${webhook:-${url:-}}}" "${msg}" || failed+=( discord ) ;;
-            webhook)  notify_webhook  args "${webhook_url:-${webhook:-${url:-}}}" "${msg}" || failed+=( webhook ) ;;
+            slack)    notify_slack    args "${slack_webhook:-${webhook:-${url:-}}}" "${msg}"                  || failed+=( slack ) ;;
+            discord)  notify_discord  args "${discord_webhook:-${webhook:-${url:-}}}" "${msg}"                || failed+=( discord ) ;;
+            webhook)  notify_webhook  args "${webhook_url:-${webhook:-${url:-}}}" "${msg}"                    || failed+=( webhook ) ;;
             *) failed+=( "${p}" ) ;;
         esac
 
     done
 
-    if (( ${#failed[@]} )); then die "Failed to send ( ${failed[*]} ) notification"
-    else success "Ok: Notification sent successfully ( ${plats[*]} )"
-    fi
+    (( ${#failed[@]} )) && die "Failed to send ( ${failed[*]} ) notification"
+    success "OK: notification sent successfully ( ${plats[*]} )"
 
 }
 cmd_notify_telegram () {
@@ -80,10 +85,5 @@ cmd_notify_webhook () {
     cmd_notify --platform webhook \
         --status "${status}" --title "${title}" --message "${message}" \
         --webhook "${webhook}" "${kwargs[@]}"
-
-}
-cmd_notify_all () {
-
-    cmd_notify --platforms telegram --platforms slack --platforms discord --platforms webhook "$@"
 
 }
