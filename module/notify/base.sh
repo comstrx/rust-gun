@@ -125,7 +125,7 @@ notify_has_webhook () {
 
 notify_telegram () {
 
-    ensure_pkg curl
+    ensure_tool curl
 
     local -n curl_args="${1}"
     local token="${2:-}" chat="${3:-}" msg="${4:-}"
@@ -145,7 +145,7 @@ notify_telegram () {
 }
 notify_slack () {
 
-    ensure_pkg curl jq
+    ensure_tool curl jq
 
     local -n curl_args="${1}"
     local webhook="${2:-}" msg="${3:-}" payload=""
@@ -163,7 +163,7 @@ notify_slack () {
 }
 notify_discord () {
 
-    ensure_pkg curl jq
+    ensure_tool curl jq
 
     local -n curl_args="${1}"
     local webhook="${2:-}" msg="${3:-}" payload=""
@@ -181,7 +181,7 @@ notify_discord () {
 }
 notify_webhook () {
 
-    ensure_pkg curl jq
+    ensure_tool curl jq
 
     local -n curl_args="${1}"
     local webhook="${2:-}" msg="${3:-}" payload=""

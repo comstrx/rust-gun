@@ -263,7 +263,7 @@ cmd_cinema_help () {
 }
 cmd_extract_gif () {
 
-    ensure_pkg ffmpeg
+    ensure_tool ffmpeg
     source <(parse "$@" -- :path out :start="00:00:00" :duration:float=60 :fps:float=20 :width:int=720 :speed:float=1 :quality=normal loop:bool)
 
     [[ -f "${path}" ]] || die "extract-gif: file not found: ${path}" 2

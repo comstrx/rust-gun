@@ -1,17 +1,43 @@
 
-cmd_repo_root () {
+cmd_git_help () {
 
-    git_repo_root
+    info_ln "Git :\n"
+
+    printf '    %s\n' \
+        "is-repo                    * Check whether current path is a git repository" \
+        "repo-root                  * Print repository root path" \
+        "root-tag                   * Build tag from current project version" \
+        "" \
+        "clone                      * Clone remote repository" \
+        "pull                       * Pull latest changes with rebase" \
+        "status                     * Print repository state (clean or dirty)" \
+        "remote                     * Show remote URL and detected protocol" \
+        "" \
+        "ssh-key                    * Create SSH key and optionally upload it" \
+        "changelog                  * Prepend release entry to CHANGELOG.md" \
+        "" \
+        "init                       * Initialize repository and configure remote" \
+        "push                       * Commit and push current branch" \
+        "release                    * Push release with tag and changelog" \
+        "" \
+        "new-tag                    * Create and push a new tag" \
+        "remove-tag                 * Delete tag locally and remotely" \
+        "new-branch                 * Create branch locally or track remote branch" \
+        "remove-branch              * Delete branch locally and remotely" \
+        "" \
+        "default-branch             * Print default branch name" \
+        "current-branch             * Print current branch name" \
+        "switch-branch              * Switch to branch or create it" \
+        "" \
+        "all-tags                   * List all tags" \
+        "all-branches               * List all branches" \
+        ''
 
 }
-cmd_guess_tag () {
 
-    printf '%s\n' "$(git_norm_tag "v$(git_root_version)")"
-
-}
 cmd_is_repo () {
 
-    ensure_pkg git
+    ensure_tool git
 
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         print yes
@@ -22,22 +48,32 @@ cmd_is_repo () {
     return 1
 
 }
+cmd_repo_root () {
+
+    git_repo_root
+
+}
+cmd_root_tag () {
+
+    printf '%s\n' "$(git_norm_tag "v$(git_root_version)")"
+
+}
 
 cmd_clone () {
 
-    ensure_pkg git
+    ensure_tool git
     run git clone "$@"
 
 }
 cmd_pull () {
 
-    ensure_pkg git
+    ensure_tool git
     run git pull --rebase "$@"
 
 }
 cmd_status () {
 
-    ensure_pkg git
+    ensure_tool git
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { print no-repo; return 1; }
 
     if [[ -z "$(git status --porcelain 2>/dev/null || true)" ]]; then
@@ -72,7 +108,7 @@ cmd_remote () {
 
 }
 
-cmd_add_ssh () {
+cmd_ssh_key () {
 
     source <(parse "$@" -- name host alias title upload:bool)
 
@@ -85,7 +121,7 @@ cmd_add_ssh () {
 
     if (( upload )) && [[ "${host}" == *github* ]]; then
 
-        ensure_pkg gh
+        ensure_tool gh
         gh auth status >/dev/null 2>&1 || die "GitHub CLI not authenticated. Run 'gh auth login'"
 
         [[ -n "${title}" ]] || { local os="$(os_name)"; is_wsl && os="wsl"; title="${os}${name:+-${name}}"; }
@@ -105,12 +141,13 @@ cmd_add_ssh () {
 }
 cmd_changelog () {
 
-    ensure_pkg grep mktemp mv date tail git
+    ensure_tool grep mktemp mv date tail git
 
     local tag="${1:-unreleased}" msg="${2:-}"
 
     [[ "${tag}" =~ ^v[0-9] ]] && tag="${tag#v}"
     [[ -n "${msg}" ]] || msg="Track ${tag} release."
+
     msg="${msg//$'\r'/ }"; msg="${msg//$'\n'/ }"
 
     local root="$(git_repo_root)"
@@ -159,13 +196,13 @@ cmd_changelog () {
     success "changelog: updated ${file}"
 
 }
+
 cmd_init () {
 
-    ensure_pkg git
+    ensure_tool git
     source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool=true)
 
     local path="" url="" parsed=0 explicit=0 before_url="" after_url="" cur=""
-
     auth="${auth:-${GIT_AUTH:-ssh}}"
     host="${host:-${GIT_HOST:-github.com}}"
 
@@ -186,7 +223,7 @@ cmd_init () {
 
         local key_path="$(git_resolve_ssh_key "${key}")"
         [[ -f "${key_path}" ]] && git_keymap_set "${key_path}" >/dev/null 2>&1 || true
-        [[ -f "${key_path}" ]] || cmd_add_ssh "${key}" "${host}" --upload
+        [[ -f "${key_path}" ]] || cmd_ssh_key "${key}" "${host}" --upload
 
     fi
 
@@ -258,7 +295,7 @@ cmd_push () {
 
     if [[ -n "${tag}" ]]; then
 
-        [[ "${tag}" == "auto" ]] && tag="$(cmd_guess_tag)"
+        [[ "${tag}" == "auto" ]] && tag="$(cmd_root_tag)"
         tag="$(git_norm_tag "${tag}")"
         [[ -z "${message}" ]] && message="Track ${tag} release."
 
@@ -408,10 +445,12 @@ cmd_new_branch () {
         IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
 
         if git_remote_has_branch "${kind}" "${ssh_cmd}" "${target}" "${branch}"; then
+
             run_git "${kind}" "${ssh_cmd}" fetch "${target}" "refs/heads/${branch}:refs/remotes/${remote}/${branch}" >/dev/null 2>&1 || true
             git_switch -c "${branch}" --track "${remote}/${branch}"
 
             return 0
+
         fi
 
     fi
@@ -510,15 +549,16 @@ cmd_all_tags () {
 
     local kind="" target="" safe="" ssh_cmd=""
     IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
+    [[ -n "${kind}" && -n "${target}" ]] || die "Failed to resolve git auth for remote '${remote}'."
 
-    ensure_pkg awk
+    ensure_tool awk
     run_git "${kind}" "${ssh_cmd}" ls-remote --tags --refs "${target}" | awk '{ sub("^refs/tags/","",$2); print $2 }'
 
 }
 cmd_all_branches () {
 
     git_repo_guard
-    ensure_pkg awk
+    ensure_tool awk
     source <(parse "$@" -- remote=origin only_local:bool auth key token token_env)
 
     if (( only_local )); then

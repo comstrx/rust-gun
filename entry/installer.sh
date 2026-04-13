@@ -1,7 +1,7 @@
 
 install_line_once () (
 
-    ensure_pkg grep rm mv dirname mktemp cat sleep kill tail 1>&2
+    ensure_tool grep rm mv dirname mktemp cat sleep kill tail
 
     local file="${1:-}" line="${2:-}"
     local tmp="" owner_pid="" i=0 max_tries=200
@@ -77,7 +77,7 @@ install_path_once () {
 }
 install_launcher () (
 
-    ensure_pkg chmod mkdir mv rm mktemp 1>&2
+    ensure_tool chmod mkdir mv rm mktemp
 
     local root="${1:-}" alias="${2:-}" root_q="" tmp=""
     local run_sh="${root}/entry/run.sh"

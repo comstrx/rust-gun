@@ -33,7 +33,7 @@ tool_nightly_version () {
 tool_workspace_msrv () {
 
     has cargo || return 1
-    ensure_pkg jq tail sort 1>&2
+    ensure_tool jq tail sort
 
     local want="$(
         cargo metadata --no-deps --format-version 1 2>/dev/null \
@@ -52,7 +52,7 @@ tool_msrv_version () {
 
     if [[ -n "${RUST_MSRV:-}" ]]; then
         tc="$(tool_normalize_version "${RUST_MSRV}")"
-        [[ "${tc}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Invalid RUST_MSRV (need x.y.z): ${RUST_MSRV}" 2
+        [[ "${tc}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Invalid RUST_MSRV (need x.y.z): ${RUST_MSRV}"
         printf '%s\n' "${tc}"
         return 0
     fi
@@ -61,7 +61,7 @@ tool_msrv_version () {
 
     if [[ -n "${tc}" ]]; then
         tc="$(tool_normalize_version "${tc}")"
-        [[ "${tc}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Invalid workspace rust_version: ${tc}" 2
+        [[ "${tc}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Invalid workspace rust_version: ${tc}"
         printf '%s\n' "${tc}"
         return 0
     fi
@@ -72,7 +72,7 @@ tool_msrv_version () {
 tool_resolve_chain () {
 
     local tc="${1-}"
-    [[ -n "${tc}" ]] || die "tool_resolve_chain: empty toolchain" 2
+    [[ -n "${tc}" ]] || die "tool_resolve_chain: empty toolchain"
 
     case "${tc}" in
         stable)  tc="$(tool_stable_version)" ;;
@@ -90,7 +90,7 @@ tool_setup_chain () {
     rustup run "${tc}" rustc -V >/dev/null 2>&1 && return 0
 
     run rustup toolchain install "${tc}" --profile minimal
-    run rustup run "${tc}" rustc -V >/dev/null 2>&1 || die "rustc not working after install: ${tc}" 2
+    run rustup run "${tc}" rustc -V >/dev/null 2>&1 || die "rustc not working after install: ${tc}"
 
 }
 
@@ -108,23 +108,23 @@ tool_rustup_windows_url () {
 }
 tool_install_rustup_unix () {
 
-    ensure_pkg curl 1>&2
+    ensure_tool curl
     local stable="${1:-stable}"
 
     run bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "'"${stable}"'"' \
-        || die "Failed to install rustup." 2
+        || die "Failed to install rustup."
 
 }
 tool_install_rustup_windows () {
 
-    ensure_pkg curl 1>&2
+    ensure_tool curl
 
     local stable="${1:-stable}"
     local url="$(tool_rustup_windows_url)"
     local tmp="${TMPDIR:-${TEMP:-/tmp}}/rustup-init.$$.exe"
 
-    run curl -fsSL -o "${tmp}" "${url}" || die "Failed to download rustup-init.exe" 2
-    run "${tmp}" -y --profile minimal --default-toolchain "${stable}" || die "Failed to install rustup (Windows)." 2
+    run curl -fsSL -o "${tmp}" "${url}" || die "Failed to download rustup-init.exe"
+    run "${tmp}" -y --profile minimal --default-toolchain "${stable}" || die "Failed to install rustup (Windows)."
 
     rm -f "${tmp}" 2>/dev/null || true
 
@@ -144,11 +144,11 @@ ensure_rust () {
         case "${target}" in
             linux|macos) tool_install_rustup_unix "${stable}" ;;
             msys|mingw|gitbash|cygwin) tool_install_rustup_windows "${stable}" ;;
-            *) die "Unsupported target for rustup install: ${target}" 2 ;;
+            *) die "Unsupported target for rustup install: ${target}" ;;
         esac
 
         tool_source_cargo_env
-        has rustup || die "rustup installed but not found in PATH." 2
+        has rustup || die "rustup installed but not found in PATH."
 
     fi
 
@@ -156,9 +156,9 @@ ensure_rust () {
     tool_setup_chain "${nightly}"
     tool_setup_chain "${msrv}"
 
-    rustup run "${stable}" cargo -V >/dev/null 2>&1 || die "cargo (stable) not working after install." 2
-    rustup run "${nightly}" rustc -V >/dev/null 2>&1 || die "rustc (nightly) not working after install." 2
-    rustup run "${msrv}" rustc -V >/dev/null 2>&1 || die "rustc (msrv) not working after install." 2
+    rustup run "${stable}" cargo -V >/dev/null 2>&1 || die "cargo (stable) not working after install."
+    rustup run "${nightly}" rustc -V >/dev/null 2>&1 || die "rustc (nightly) not working after install."
+    rustup run "${msrv}" rustc -V >/dev/null 2>&1 || die "rustc (msrv) not working after install."
 
     tool_source_cargo_env
     tool_hash_clear
@@ -167,7 +167,7 @@ ensure_rust () {
 ensure_component () {
 
     local comp="${1-}" tc="${2:-stable}"
-    [[ -n "${comp}" ]] || die "ensure_component: requires a component name" 2
+    [[ -n "${comp}" ]] || die "ensure_component: requires a component name"
 
     has rustup || ensure_rust
 
@@ -177,13 +177,39 @@ ensure_component () {
     if [[ "${comp}" == "llvm-tools-preview" ]]; then
         rustup component list --toolchain "${tc}" --installed 2>/dev/null | grep -qE '^(llvm-tools|llvm-tools-preview)\b' && return 0
         run rustup component add --toolchain "${tc}" llvm-tools-preview 2>/dev/null || run rustup component add --toolchain "${tc}" llvm-tools
-        rustup component list --toolchain "${tc}" --installed 2>/dev/null | grep -qE '^(llvm-tools|llvm-tools-preview)\b' || die "Failed to install llvm-tools on '${tc}'." 2
+        rustup component list --toolchain "${tc}" --installed 2>/dev/null | grep -qE '^(llvm-tools|llvm-tools-preview)\b' || die "Failed to install llvm-tools on '${tc}'."
         return 0
     fi
 
     rustup component list --toolchain "${tc}" --installed 2>/dev/null | grep -qE "^${comp}\b" && return 0
     run rustup component add --toolchain "${tc}" "${comp}"
-    rustup component list --toolchain "${tc}" --installed 2>/dev/null | grep -qE "^${comp}\b" || die "Failed to install component '${comp}' on '${tc}'." 2
+
+    rustup component list --toolchain "${tc}" --installed 2>/dev/null | grep -qE "^${comp}\b" || die "Failed to install component '${comp}' on '${tc}'."
+
+}
+ensure_edit_crate () {
+
+    has cargo || ensure_rust
+    tool_source_cargo_env
+
+    has cargo-add && has cargo-rm && has cargo-upgrade && has cargo-set-version && return 0
+
+    if has cargo-binstall; then
+        local -a extra=()
+        is_ci && extra+=( --no-confirm --force )
+        run cargo binstall cargo-edit "${extra[@]}" || true
+    fi
+    if ! { has cargo-add && has cargo-rm && has cargo-upgrade && has cargo-set-version; }; then
+        run cargo install --locked cargo-edit || die "Failed to install cargo-edit"
+    fi
+
+    tool_source_cargo_env
+    tool_hash_clear
+
+    has cargo-add         || die "cargo-edit installed but cargo-add not found"
+    has cargo-rm          || die "cargo-edit installed but cargo-rm not found"
+    has cargo-upgrade     || die "cargo-edit installed but cargo-upgrade not found"
+    has cargo-set-version || die "cargo-edit installed but cargo-set-version not found"
 
 }
 ensure_crate () {
@@ -191,8 +217,13 @@ ensure_crate () {
     local crate="${1-}" bin="${2-}"
     shift 2 || true
 
-    [[ -n "${crate}" ]] || die "ensure_crate: requires <crate>" 2
-    [[ -n "${bin}" ]]   || die "ensure_crate: requires <bin>" 2
+    [[ -n "${crate}" ]] || die "ensure_crate: requires <crate>"
+    [[ -n "${bin}" ]]   || die "ensure_crate: requires <bin>"
+
+    case "${crate}:${bin}" in
+        cargo-edit:*|cargo-upgrade:*|cargo-add:*|cargo-rm:*|cargo-set-version:*) ensure_edit_crate; return 0 ;;
+        *:cargo-upgrade|*:cargo-add|*:cargo-rm|*:cargo-set-version) ensure_edit_crate; return 0 ;;
+    esac
 
     has cargo || ensure_rust
     tool_source_cargo_env
@@ -200,11 +231,10 @@ ensure_crate () {
     tool_crate_bin_ok "${bin}" && return 0
 
     if ! has cargo-binstall; then
-        run cargo install --locked cargo-binstall || die "Failed to install cargo-binstall" 2
+        run cargo install --locked cargo-binstall || die "Failed to install cargo-binstall"
         tool_source_cargo_env
-        has cargo-binstall || die "cargo-binstall installed but not found in PATH" 2
+        has cargo-binstall || die "cargo-binstall installed but not found in PATH"
     fi
-
     if (( $# == 0 )); then
         local -a extra=()
         is_ci && extra+=( --no-confirm --force )
@@ -214,31 +244,6 @@ ensure_crate () {
     fi
 
     tool_source_cargo_env
-    tool_crate_bin_ok "${bin}" || die "crate '${crate}' installed but binary '${bin}' not found" 2
-
-}
-ensure_cargo_edit () {
-
-    has cargo || ensure_rust
-    tool_source_cargo_env
-
-    if has cargo-add && has cargo-rm && has cargo-upgrade; then
-        return 0
-    fi
-    if has cargo-binstall; then
-        local -a extra=()
-        is_ci && extra+=( --no-confirm --force )
-
-        run cargo binstall cargo-edit "${extra[@]}" || true
-    fi
-    if ! { has cargo-add && has cargo-rm && has cargo-upgrade; }; then
-        run cargo install --locked cargo-edit || die "Failed to install cargo-edit" 2
-    fi
-
-    tool_source_cargo_env
-
-    has cargo-add     || die "cargo-edit installed but cargo-add not found" 2
-    has cargo-rm      || die "cargo-edit installed but cargo-rm not found" 2
-    has cargo-upgrade || die "cargo-edit installed but cargo-upgrade not found" 2
+    tool_crate_bin_ok "${bin}" || die "crate '${crate}' installed but binary '${bin}' not found"
 
 }

@@ -1,4 +1,35 @@
 
+ensure_tool () {
+
+    ensure_pkg "$@" 1>&2
+
+}
+tool_target () {
+
+    pkg_target
+
+}
+tool_backend () {
+
+    pkg_backend
+
+}
+tool_assume_yes () {
+
+    pkg_assume_yes
+
+}
+tool_mingw_prefix () {
+
+    pkg_mingw_prefix
+
+}
+tool_hash_clear () {
+
+    pkg_hash_clear
+
+}
+
 tool_path_prepend () {
 
     local dir="${1-}"
@@ -43,7 +74,7 @@ tool_to_unix_path () {
 }
 tool_is_unix_target () {
 
-    case "$(pkg_target)" in
+    case "$(tool_target)" in
         linux|macos) return 0 ;;
     esac
 
@@ -52,7 +83,7 @@ tool_is_unix_target () {
 }
 tool_is_windows_target () {
 
-    case "$(pkg_target)" in
+    case "$(tool_target)" in
         msys|mingw|gitbash|cygwin) return 0 ;;
     esac
 
@@ -71,7 +102,7 @@ tool_pick_sort_bin () {
         return 0
     fi
 
-    ensure_pkg sort 1>&2
+    ensure_tool sort 1>&2
 
     if sort -V </dev/null >/dev/null 2>&1; then
         printf '%s\n' "sort"
@@ -111,39 +142,8 @@ tool_normalize_version () {
 tool_version_major () {
 
     local v="${1-}"
+
     v="${v#v}"
     printf '%s\n' "${v%%.*}"
-
-}
-
-tool_target () {
-
-    pkg_target
-
-}
-tool_backend () {
-
-    pkg_backend
-
-}
-tool_assume_yes () {
-
-    pkg_assume_yes
-
-}
-tool_mingw_prefix () {
-
-    pkg_mingw_prefix
-
-}
-tool_hash_clear () {
-
-    pkg_hash_clear
-
-}
-
-ensure_tool () {
-
-    ensure_pkg "$@"
 
 }

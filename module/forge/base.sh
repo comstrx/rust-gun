@@ -1,7 +1,7 @@
 
 forge_replace_all () {
 
-    ensure_pkg find mktemp rm perl xargs 1>&2
+    ensure_tool find mktemp rm perl xargs
 
     local root="${1:-}" map_name="${2:-}" ig="" f="" any=0 k=""
 
@@ -237,7 +237,7 @@ forge_resolve_path () {
 
 forge_copy_template () {
 
-    ensure_pkg mkdir find tar grep 1>&2
+    ensure_tool mkdir find tar grep
 
     local src="${1:-}" dest="${2:-}"
     local -a tar_out=()

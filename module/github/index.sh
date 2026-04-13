@@ -1,4 +1,31 @@
 
+cmd_github_help () {
+
+    info_ln "GitHub :\n"
+
+    printf '    %s\n' \
+        "env-list                   * List GitHub environments" \
+        "var-list                   * List GitHub variables" \
+        "secret-list                * List GitHub secrets" \
+        "" \
+        "add-var                    * Add GitHub variable" \
+        "add-secret                 * Add GitHub secret" \
+        "remove-var                 * Remove GitHub variable" \
+        "remove-secret              * Remove GitHub secret" \
+        "" \
+        "sync-vars                  * Sync GitHub variables from file" \
+        "sync-secrets               * Sync GitHub secrets from file" \
+        "clear-vars                 * Remove all GitHub variables" \
+        "clear-secrets              * Remove all GitHub secrets" \
+        "" \
+        "new-repo                   * Create GitHub repository and sync vars/secrets" \
+        "remove-repo                * Remove GitHub repository" \
+        "new-env                    * Create GitHub environment" \
+        "remove-env                 * Remove GitHub environment" \
+        ''
+
+}
+
 cmd_env_list () {
 
     gh_env_list "$@"
@@ -69,7 +96,10 @@ cmd_new_repo () {
 
     gh_new_repo "${kwargs[@]}"
 
-    (( sync )) && { cmd_sync_vars "${kwargs[@]}"; cmd_sync_secrets "${kwargs[@]}"; }
+    (( sync )) && {
+        cmd_sync_vars "${kwargs[@]}"
+        cmd_sync_secrets "${kwargs[@]}"
+    }
 
 }
 cmd_remove_repo () {

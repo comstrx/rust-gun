@@ -1,7 +1,7 @@
 
 fs_new_dir () {
 
-    ensure_pkg mkdir chmod
+    ensure_tool mkdir chmod
     source <(parse "$@" -- :src mode)
 
     run mkdir -p -- "${src}"
@@ -10,7 +10,7 @@ fs_new_dir () {
 }
 fs_new_file () {
 
-    ensure_pkg mkdir chmod touch dirname
+    ensure_tool mkdir chmod touch dirname
     source <(parse "$@" -- :src mode)
 
     run mkdir -p -- "$(dirname -- "${src}")"
@@ -34,7 +34,7 @@ fs_path_type () {
 }
 fs_file_type () {
 
-    ensure_pkg file
+    ensure_tool file
     local p="${1:-}" mime="" enc=""
 
     [[ -L "${p}" ]] && { printf '%s\n' "symlink"; return 0; }
@@ -82,7 +82,7 @@ fs_path_exists () {
 
 fs_copy_path () {
 
-    ensure_pkg cp mkdir dirname
+    ensure_tool cp mkdir dirname
     source <(parse "$@" -- :src :dest)
 
     run mkdir -p -- "$(dirname -- "${dest}")"
@@ -97,7 +97,7 @@ fs_copy_path () {
 }
 fs_move_path () {
 
-    ensure_pkg mv mkdir dirname
+    ensure_tool mv mkdir dirname
     source <(parse "$@" -- :src :dest)
 
     run mkdir -p -- "$(dirname -- "${dest}")"
@@ -106,7 +106,7 @@ fs_move_path () {
 }
 fs_remove_path () {
 
-    ensure_pkg rm find
+    ensure_tool rm find
     source <(parse "$@" -- :src clear:bool)
 
     [[ "${src}" == "/" || "${src}" == "." || "${src}" == ".." ]] && die "Refuse to delete '/' '.' '..'"
@@ -124,7 +124,7 @@ fs_remove_path () {
 }
 fs_trash_path () {
 
-    ensure_pkg mkdir mv date basename
+    ensure_tool mkdir mv date basename
     source <(parse "$@" -- :src trash_dir)
 
     [[ "${src}" == "/" || "${src}" == "." || "${src}" == ".." ]] && die "Refuse to trash '/' '.' '..'"
@@ -147,7 +147,7 @@ fs_trash_path () {
 }
 fs_link_path () {
 
-    ensure_pkg mkdir ln dirname
+    ensure_tool mkdir ln dirname
     source <(parse "$@" -- :src :dest)
 
     run mkdir -p -- "$(dirname -- "${dest}")"
@@ -157,7 +157,7 @@ fs_link_path () {
 
 fs_stats_path () {
 
-    ensure_pkg stat
+    ensure_tool stat
     source <(parse "$@" -- :src)
 
     if stat --version >/dev/null 2>&1; then stat -c $'path=%n\ntype=%F\nsize=%s\nperm=%a\nowner=%U\ngroup=%G\nmtime=%y' -- "${src}"
@@ -167,7 +167,7 @@ fs_stats_path () {
 }
 fs_diff_path () {
 
-    ensure_pkg diff
+    ensure_tool diff
     source <(parse "$@" -- :src :dest recursive:bool=true brief:bool=true)
 
     [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
@@ -184,7 +184,7 @@ fs_diff_path () {
 }
 fs_synced_path () {
 
-    ensure_pkg diff
+    ensure_tool diff
     source <(parse "$@" -- :src :dest recursive:bool=true)
 
     [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
@@ -203,7 +203,7 @@ fs_synced_path () {
 
 fs_compress_path () {
 
-    ensure_pkg mkdir dirname basename tar
+    ensure_tool mkdir dirname basename tar
     source <(parse "$@" -- src dest name type=zip exclude:list)
 
     [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
@@ -244,7 +244,7 @@ fs_compress_path () {
 
     if [[ "${kind}" == "zip" || "${ext}" == *.zip ]]; then
 
-        ensure_pkg zip
+        ensure_tool zip
 
         cmd=( zip -rq )
         cmd+=( "${kwargs[@]}" )
@@ -263,7 +263,7 @@ fs_compress_path () {
     fi
     if [[ "${kind}" == "rar" || "${ext}" == *.rar ]]; then
 
-        ensure_pkg rar
+        ensure_tool rar
 
         cmd=( rar a -r -idq )
         cmd+=( "${kwargs[@]}" )
@@ -282,7 +282,7 @@ fs_compress_path () {
     fi
     if [[ "${kind}" == "7z" || "${ext}" == *.7z ]]; then
 
-        ensure_pkg 7z
+        ensure_tool 7z
 
         cmd=( 7z a -y )
         cmd+=( "${kwargs[@]}" )
@@ -301,7 +301,7 @@ fs_compress_path () {
     fi
     if [[ "${kind}" == "tzst" || "${kind}" == "zst" || "${kind}" == "zstd" || "${ext}" == *.tar.zst || "${ext}" == *.tzst ]]; then
 
-        ensure_pkg zstd
+        ensure_tool zstd
 
         if tar --help 2>/dev/null | grep -q -- '--zstd'; then
 
@@ -351,7 +351,7 @@ fs_compress_path () {
 }
 fs_extract_path () {
 
-    ensure_pkg mkdir tar
+    ensure_tool mkdir tar
     source <(parse "$@" -- :src dest strip:int)
 
     [[ -e "${src}" || -L "${src}" ]] || die "Archive not found: ${src}"
@@ -364,7 +364,7 @@ fs_extract_path () {
 
     if [[ "${ext}" == *.zip ]]; then
 
-        ensure_pkg unzip
+        ensure_tool unzip
         run unzip -oq "${kwargs[@]}" -- "${src}" -d "${dest}"
 
         printf '%s\n' "${dest}"
@@ -373,7 +373,7 @@ fs_extract_path () {
     fi
     if [[ "${ext}" == *.rar ]]; then
 
-        ensure_pkg unrar
+        ensure_tool unrar
         run unrar x -o+ -y "${kwargs[@]}" "${src}" "${dest}/"
 
         printf '%s\n' "${dest}"
@@ -382,7 +382,7 @@ fs_extract_path () {
     fi
     if [[ "${ext}" == *.7z ]]; then
 
-        ensure_pkg 7z
+        ensure_tool 7z
         run 7z x -y "${kwargs[@]}" -o"${dest}" "${src}"
 
         printf '%s\n' "${dest}"
@@ -391,7 +391,7 @@ fs_extract_path () {
     fi
     if [[ "${ext}" == *.tar.zst || "${ext}" == *.tzst ]]; then
 
-        ensure_pkg zstd
+        ensure_tool zstd
 
         if tar --help 2>/dev/null | grep -q -- '--zstd'; then
 
@@ -431,7 +431,7 @@ fs_extract_path () {
 }
 fs_backup_path () {
 
-    ensure_pkg date basename
+    ensure_tool date basename
     source <(parse "$@" -- src dest name type=zip archive_dir="${ARCHIVE_DIR:-}")
 
     [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
@@ -448,7 +448,7 @@ fs_backup_path () {
 }
 fs_sync_path () {
 
-    ensure_pkg rsync mkdir
+    ensure_tool rsync mkdir
     source <(parse "$@" -- src dest src_dir="${WORKSPACE_DIR:-}" sync_dir="${SYNC_DIR:-}" force:bool=true ignore:bool=true exclude:list)
 
     [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"

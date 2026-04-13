@@ -1,20 +1,30 @@
 
+cmd_forge_help () {
+
+    info_ln "Scaffold :\n"
+
+    printf '    %s\n' \
+        "new                        * Create a new project from template" \
+        "new-project                * Create a new pure project from template" \
+        "new-bin                    * Create a new pure binary project from template" \
+        "new-lib                    * Create a new library project from template" \
+        "new-ws                     * Create a new workspace project from template" \
+        ''
+
+}
+
 cmd_new () {
 
     source <(parse "$@" -- :template name dest placeholders:bool=true git:bool=true)
 
     template="$(forge_resolve_name "${template}")"
-
     name="${name:-"$(forge_display_name "${template}")"}"
     dest="$(forge_resolve_dest "${dest}" "${name}")"
 
-    local root="${TEMPLATE_DIR:-}"
-    local conf="${root}/conf"
-
+    local root="${TEMPLATE_DIR:-}"; local conf="${root}/conf"
     local src="$(forge_resolve_path "${root}" "${template}")"
 
     forge_copy_template "${src}" "${dest}"
-
     forge_copy_config "${template}" "${conf}" "${dest}" "${kwargs[@]}"
 
     (( placeholders )) && forge_placeholders "${dest}" "${name}" "${name}" "${kwargs[@]}"

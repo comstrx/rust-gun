@@ -1,7 +1,7 @@
 
 gh_cmd () {
 
-    ensure_pkg gh mkdir
+    ensure_tool gh mkdir
     source <(parse "$@" -- profile)
 
     local p="${profile:-${GH_PROFILE:-${GIT_PROFILE:-"$(git_guess_ssh_key)"}}}"
@@ -325,7 +325,7 @@ gh_var_list () {
 
 gh_new_repo () {
 
-    ensure_pkg git
+    ensure_tool git
     source <(parse "$@" -- :name private:bool)
 
     local full="${name}" ssh_url=""

@@ -1,4 +1,35 @@
 
+cmd_fs_help () {
+
+    info_ln "Files :\n"
+
+    printf '    %s\n' \
+        "new-dir                    * Create a new directory" \
+        "new-file                   * Create a new file" \
+        "" \
+        "path-type                  * Print path type if the path exists" \
+        "file-type                  * Print file type if the file exists" \
+        "" \
+        "copy                       * Copy file or directory to destination" \
+        "move                       * Move file or directory to destination" \
+        "link                       * Create symlink for file or directory" \
+        "" \
+        "remove                     * Remove file or directory" \
+        "trash                      * Move file or directory to trash" \
+        "clear                      * Clear directory contents or truncate file" \
+        "" \
+        "stats                      * Show file or directory statistics" \
+        "diff                       * Show diff between source and destination" \
+        "synced                     * Check whether source and destination are synced" \
+        "" \
+        "compress                   * Compress file or directory" \
+        "extract                    * Extract archive to destination" \
+        "backup                     * Create backup for file or directory" \
+        "sync                       * Sync file or directory to target" \
+        ''
+
+}
+
 cmd_new_dir () {
 
     source <(parse "$@" -- :src mode)
@@ -42,7 +73,6 @@ cmd_link () {
     fs_path_exists "${src}" && fs_link_path "${src}" "${dest}" "${kwargs[@]}"
 
 }
-
 cmd_remove () {
 
     source <(parse "$@" -- :src)

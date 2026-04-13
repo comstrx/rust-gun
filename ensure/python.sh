@@ -46,16 +46,19 @@ tool_python_aliases_unix () {
     tool_export_python_bin
 
 }
+
 tool_python_ok () {
 
     local want="${1:-3}" major=""
-
     tool_python_run -c 'import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)' >/dev/null 2>&1 || return 1
 
     if [[ -n "${want}" && "${want}" =~ ^[0-9]+$ ]]; then
+
         major="$(tool_python_run -c 'import sys; print(sys.version_info[0])' 2>/dev/null || true)"
         [[ "${major}" =~ ^[0-9]+$ ]] || return 1
+
         (( major >= want )) || return 1
+
     fi
 
     return 0
@@ -75,6 +78,7 @@ tool_pip_ok () {
     tool_python_run -m pip --version >/dev/null 2>&1
 
 }
+
 ensure_python () {
 
     local want="${1:-${PYTHON_VERSION:-3}}"
@@ -82,13 +86,34 @@ ensure_python () {
     tool_export_python_bin
     tool_python_ok "${want}" && tool_pip_ok && return 0
 
-    ensure_pkg python pip 1>&2
+    ensure_tool python pip
 
     tool_export_python_bin
     tool_python_aliases_unix
     tool_hash_clear
+    tool_python_ok "${want}" || die "Python install did not satisfy requirement."
 
-    tool_python_ok "${want}" || die "Python install did not satisfy requirement." 2
-    tool_pip_ok || die "pip is not available after Python install." 2
+    tool_python_run -m pip install --upgrade pip || die "Failed to upgrade pip."
+    tool_pip_ok || die "pip is not available after Python install/upgrade."
+
+}
+ensure_pip () {
+
+    ensure_python
+
+}
+ensure_lib () {
+
+    local pkg="${1-}" ver="${2-}"
+    local target="${pkg:-}"
+    shift 2 || true
+
+    [[ -n "${pkg}" ]] || die "ensure_lib: requires <package>"
+    [[ -n "${ver}" ]] && target="${pkg}==${ver}"
+
+    ensure_python
+
+    tool_python_run -m pip show "${pkg}" >/dev/null 2>&1 && return 0
+    tool_python_run -m pip install "$@" "${target}" || die "Failed to install Python package '${target}'."
 
 }

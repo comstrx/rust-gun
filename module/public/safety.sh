@@ -4,16 +4,16 @@ cmd_safety_help () {
     info_ln "Safety :\n"
 
     printf '    %s\n' \
-        "leaks                      * Remove trailing whitespace in git-tracked files" \
-        "sbom                       * Remove trailing whitespace in git-tracked files" \
-        "trivy                      * Remove trailing whitespace in git-tracked files" \
+        "leaks                      * Scan for secrets and credential leaks" \
+        "trivy                      * Scan for vulnerabilities and secrets" \
+        "sbom                       * Generate SBOM for the project" \
         ''
 
 }
 
 cmd_leaks () {
 
-    ensure gitleaks
+    ensure_tool gitleaks
     source <(parse "$@" -- mode format target out config baseline redact=100 fail:bool=true)
 
     out="${out:-/dev/stdout}"
@@ -34,25 +34,9 @@ cmd_leaks () {
         --exit-code "${exit_code}" "${cmd[@]}" "${kwargs[@]}" -- "${target:-.}"
 
 }
-cmd_sbom () {
-
-    ensure syft
-    source <(parse "$@" -- src format out config)
-
-    format="${format:-cyclonedx-json}"
-    out="${out:-${OUT_DIR:-out}/sbom.json}"
-
-    local -a cmd=()
-
-    config="${config:-"$(config_file syft yaml yml)"}"
-    [[ -f "${config}" ]] && cmd+=( --config "${config}" )
-    [[ "${out}" != "/dev/stdout" && "${out}" == */* ]] && ensure_dir "${out%/*}"
-    run syft scan -o "${format}=${out}" "${cmd[@]}" "${kwargs[@]}" -- "${src:-dir:.}"
-
-}
 cmd_trivy () {
 
-    ensure trivy
+    ensure_tool trivy
     source <(parse "$@" -- mode format target out scanners severity config no_progress:bool=true ignore_unfixed:bool=true fail:bool=true)
 
     out="${out:-/dev/stdout}"
@@ -75,5 +59,21 @@ cmd_trivy () {
 
     run trivy "${mode:-fs}" --output "${out}" --format "${format:-table}" \
         --exit-code "${exit_code}" "${cmd[@]}" "${kwargs[@]}" "${target:-.}"
+
+}
+cmd_sbom () {
+
+    ensure_tool syft
+    source <(parse "$@" -- src format out config)
+
+    format="${format:-cyclonedx-json}"
+    out="${out:-${OUT_DIR:-out}/sbom.json}"
+
+    local -a cmd=()
+
+    config="${config:-"$(config_file syft yaml yml)"}"
+    [[ -f "${config}" ]] && cmd+=( --config "${config}" )
+    [[ "${out}" != "/dev/stdout" && "${out}" == */* ]] && ensure_dir "${out%/*}"
+    run syft scan -o "${format}=${out}" "${cmd[@]}" "${kwargs[@]}" -- "${src:-dir:.}"
 
 }

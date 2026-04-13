@@ -52,7 +52,7 @@ cmd_done () {
     cmd_coverage
     cmd_semver
 
-    (( release )) && [[ -z "${tag}" ]] && tag="$(cmd_guess_tag)"
+    (( release )) && [[ -z "${tag}" ]] && tag="$(cmd_root_tag)"
 
     cmd_push --tag "${tag}" --release "${release}" "${kwargs[@]}"
 

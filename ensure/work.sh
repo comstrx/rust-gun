@@ -30,9 +30,9 @@ ensure () {
 
             taplo)                     ensure_crate taplo-cli taplo ;;
             cargo-audit)               ensure_crate cargo-audit cargo-audit --features fix ;;
-            cargo-edit|cargo-upgrade)  ensure_cargo_edit ;;
-            cargo-add|cargo-rm)        ensure_cargo_edit ;;
-            cargo-set-version)         ensure_cargo_edit ;;
+            cargo-edit|cargo-upgrade)  ensure_edit_crate ;;
+            cargo-add|cargo-rm)        ensure_edit_crate ;;
+            cargo-set-version)         ensure_edit_crate ;;
 
             cargo-*)                   ensure_crate "${want}" "${want}" ;;
 

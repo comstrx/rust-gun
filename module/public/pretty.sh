@@ -4,6 +4,8 @@ cmd_pretty_help () {
     info_ln "Pretty :\n"
 
     printf '    %s\n' \
+        "normalize                  * Remove trailing whitespace in git-tracked files" \
+        "" \
         "typo-check                 * Typos check docs and text files" \
         "typo-fix                   * Typos fix docs and text files" \
         "" \
@@ -12,69 +14,17 @@ cmd_pretty_help () {
         "" \
         "prettier-check             * Validate formatting for Markdown/YAML/etc. (no changes)" \
         "prettier-fix               * Auto-format Markdown/YAML/etc." \
-        "" \
-        "normalize                  * Remove trailing whitespace in git-tracked files" \
         ''
-
-}
-
-cmd_typo_check () {
-
-    ensure typos
-
-    local -a cmd=()
-
-    local config="$(config_file typos toml)"
-    [[ -f "${config}" ]] && cmd+=( --config "${config}" )
-
-    run typos --format brief "${cmd[@]}" "$@"
-
-}
-cmd_typo_fix () {
-
-    ensure typos
-
-    local -a cmd=()
-
-    local config="$(config_file typos toml)"
-    [[ -f "${config}" ]] && cmd+=( --config "${config}" )
-
-    run typos -w "${cmd[@]}" "$@"
-
-}
-
-cmd_taplo_check () {
-
-    ensure taplo
-    run taplo fmt --check "$@"
-
-}
-cmd_taplo_fix () {
-
-    ensure taplo
-    run taplo fmt "$@"
-
-}
-
-cmd_prettier_check () {
-
-    ensure node
-    run npx -y prettier@3.3.3 --no-error-on-unmatched-pattern --check "**/*.{md,mdx,yml,yaml,json,jsonc}" ".prettierrc.yml" "$@"
-
-}
-cmd_prettier_fix () {
-
-    ensure node
-    run npx -y prettier@3.3.3 --no-error-on-unmatched-pattern --write "**/*.{md,mdx,yml,yaml,json,jsonc}" ".prettierrc.yml" "$@"
 
 }
 
 cmd_normalize () {
 
-    ensure git perl
+    ensure_tool git perl
 
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not a git repo"
-    git diff --quiet -- && { git diff --cached --quiet -- || die "normalize: requires clean worktree"; }
+    git diff --quiet -- || die "normalize: requires clean worktree"
+    git diff --cached --quiet -- || die "normalize: requires clean worktree"
 
     git ls-files -z | perl -e '
         use strict;
@@ -145,5 +95,55 @@ cmd_normalize () {
 
     run git add --renormalize .
     run git restore .
+
+}
+cmd_typo_check () {
+
+    ensure_tool typos
+
+    local -a cmd=()
+
+    local config="$(config_file typos toml)"
+    [[ -f "${config}" ]] && cmd+=( --config "${config}" )
+
+    run typos --format brief "${cmd[@]}" "$@"
+
+}
+cmd_typo_fix () {
+
+    ensure_tool typos
+
+    local -a cmd=()
+
+    local config="$(config_file typos toml)"
+    [[ -f "${config}" ]] && cmd+=( --config "${config}" )
+
+    run typos -w "${cmd[@]}" "$@"
+
+}
+
+cmd_taplo_check () {
+
+    ensure_tool taplo
+    run taplo fmt --check "$@"
+
+}
+cmd_taplo_fix () {
+
+    ensure_tool taplo
+    run taplo fmt "$@"
+
+}
+
+cmd_prettier_check () {
+
+    ensure_node
+    run npx -y prettier@3.3.3 --no-error-on-unmatched-pattern --check "**/*.{md,mdx,yml,yaml,json,jsonc}" ".prettierrc.yml" "$@"
+
+}
+cmd_prettier_fix () {
+
+    ensure_node
+    run npx -y prettier@3.3.3 --no-error-on-unmatched-pattern --write "**/*.{md,mdx,yml,yaml,json,jsonc}" ".prettierrc.yml" "$@"
 
 }

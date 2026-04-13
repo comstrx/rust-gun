@@ -1,7 +1,7 @@
 
 run_git () {
 
-    ensure_pkg git
+    ensure_tool git
 
     local kind="${1:-ssh}" ssh_cmd="${2:-}"
     shift 2 || true
@@ -23,13 +23,13 @@ run_git () {
 }
 git_repo_guard () {
 
-    ensure_pkg git
+    ensure_tool git
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not a git repository."
 
 }
 git_repo_root () {
 
-    ensure_pkg git
+    ensure_tool git
     git rev-parse --show-toplevel 2>/dev/null || pwd -P
 
 }
@@ -277,7 +277,7 @@ git_upstream_exists_for () {
 
 git_keymap_set () {
 
-    ensure_pkg mkdir mktemp mv awk chmod
+    ensure_tool mkdir mktemp mv awk chmod
     source <(parse "$@" -- :key repo)
 
     local file="${HOME}/.ssh/git-keymap.tsv"
@@ -369,8 +369,10 @@ git_auth_resolve () {
 
         kind="ssh" target="${remote}" safe="${remote}" key="$(git_resolve_ssh_key "${key}")"
 
-        if [[ -f "${key}" ]]; then printf -v ssh_cmd 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2' "${key}"
-        else ssh_cmd='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2'
+        if [[ -f "${key}" ]]; then
+            printf -v ssh_cmd 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2' "${key}"
+        else
+            ssh_cmd='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=2'
         fi
 
         printf '%s\t%s\t%s\t%s\n' "${kind}" "${target}" "${safe}" "${ssh_cmd}"
@@ -404,7 +406,7 @@ git_auth_resolve () {
 }
 git_new_ssh_key () {
 
-    ensure_pkg ssh-keygen mkdir chmod rm
+    ensure_tool ssh-keygen mkdir chmod rm
     source <(parse "$@" -- name host alias type=ed25519 bits=4096 comment passphrase file config:bool=true add_agent:bool force:bool)
 
     local ssh_dir="${HOME}/.ssh" pub="" n="${name}" c="${comment}" base="${file}"
@@ -433,7 +435,7 @@ git_new_ssh_key () {
 
     if (( config )); then
 
-        ensure_pkg touch awk mktemp mv
+        ensure_tool touch awk mktemp mv
 
         local cfg="${ssh_dir}/config"
         local a="${alias:-}"
@@ -471,7 +473,7 @@ git_new_ssh_key () {
     fi
     if (( add_agent )); then
 
-        ensure_pkg ssh-add
+        ensure_tool ssh-add
         [[ -n "${SSH_AUTH_SOCK:-}" ]] && run ssh-add "${base}"
 
     fi
@@ -510,7 +512,7 @@ git_norm_path_git () {
 }
 git_initial_branch () {
 
-    ensure_pkg grep git
+    ensure_tool grep git
     ( git init -h 2>&1 || true ) | grep -q -- '--initial-branch'
 
 }
@@ -526,7 +528,7 @@ git_set_default_branch () {
 }
 git_guard_no_unborn () {
 
-    ensure_pkg find git
+    ensure_tool find git
 
     local root="${1:-.}" d="" repo=""
     local root_abs="$(cd -- "${root}" && pwd -P)" || die "Invalid root: ${root}"
@@ -548,7 +550,7 @@ git_guard_no_unborn () {
 }
 git_root_version () {
 
-    ensure_pkg awk git
+    ensure_tool awk git
     local v="" root="$(git_repo_root)"
 
     if [[ -f "${root}/Cargo.toml" ]]; then
@@ -575,7 +577,6 @@ git_root_version () {
     fi
     if [[ -z "${v}" && -f "${root}/composer.json" ]]; then
 
-        ensure_pkg php
         v="$(
             php -r '$j=@json_decode(@file_get_contents($argv[1]), true); echo is_array($j)&&isset($j["version"])?$j["version"]:"";' \
                 "${root}/composer.json" 2>/dev/null
@@ -584,7 +585,6 @@ git_root_version () {
     fi
     if [[ -z "${v}" && -f "${root}/package.json" ]]; then
 
-        ensure_pkg node
         v="$(
             node -e '
                 const fs = require("fs");
