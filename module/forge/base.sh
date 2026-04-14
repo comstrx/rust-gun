@@ -204,7 +204,7 @@ forge_resolve_dest () {
 
     local dir="${1:-}" name="${2:-}"
 
-    dir="${dir:-${PROJECTS_DIR:-${WORKSPACE_DIR:-${PWD}}}}"
+    dir="${dir:-${WORKSPACE_DIR:-${PWD}}}"
     dir="${dir/#\~/${HOME}}"
     dir="${dir%/}"
 
@@ -222,7 +222,6 @@ forge_resolve_path () {
 
         try="${base}/${name}"
         [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
-
         [[ "${name}" == *-"${base}" ]] || continue
 
         try="${base}/${name%-${base}}"
@@ -235,6 +234,37 @@ forge_resolve_path () {
 
 }
 
+forge_ensure_template () {
+
+    ensure_pkg awk tail tar mkdir rm dirname
+
+    local src="${0}"
+    [[ -f "${src}" ]] || die "Source bundle not found: ${src}"
+    [[ -d "${TEMPLATE_DIR:-}" ]] && return 0
+
+    local key="${TEMPLATE_KEY:-__TEMPLATE_PAYLOAD_KEY__}"
+    local line="$(awk -v key="${key}" '$0 == key { print NR + 1; exit }' "${src}" 2>/dev/null || true)"
+    [[ -n "${line}" ]] || die "Template payload marker not found"
+
+    local tmp="$(tmp_dir "gun-template")"
+    local out="${tmp}/template"
+
+    ensure_dir "${out}"
+
+    tail -n +"${line}" -- "${src}" | tar -xzf - -C "${out}" --strip-components=1 || {
+        rm -rf -- "${tmp}" >/dev/null 2>&1 || true
+        die "Failed to extract template payload"
+    }
+    TEMPLATE_DIR="$(cd -- "${out}" 2>/dev/null && pwd -P)" || {
+        rm -rf -- "${tmp}" >/dev/null 2>&1 || true
+        die "Failed to resolve TEMPLATE_DIR"
+    }
+    [[ -d "${TEMPLATE_DIR}" ]] || {
+        rm -rf -- "${tmp}" >/dev/null 2>&1 || true
+        die "Extracted template dir not found"
+    }
+
+}
 forge_copy_template () {
 
     ensure_tool mkdir find tar grep
@@ -254,6 +284,7 @@ forge_copy_template () {
     tar -C "${src}" -cf - . | "${tar_out[@]}" || die "copy failed: ${src} -> ${dest}"
 
 }
+
 forge_copy_global_config () {
 
     local src_dir="${1:-}" dest_dir="${2:-}" path="" base="" out=""
@@ -295,7 +326,6 @@ forge_copy_custom_config () {
 
         rel="${f#${src_dir}/}"
         out="${dest_dir}/${rel}"
-
         [[ -e "${out}" ]] && continue
 
         mkdir -p -- "${out%/*}" || die "Failed mkdir ${out}" 2

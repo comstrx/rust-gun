@@ -1,9 +1,10 @@
 
 cmd_safety_help () {
 
-    info_ln "Safety :\n"
+    info_ln "Safety :"
 
     printf '    %s\n' \
+        "" \
         "leaks                      * Scan for secrets and credential leaks" \
         "trivy                      * Scan for vulnerabilities and secrets" \
         "sbom                       * Generate SBOM for the project" \

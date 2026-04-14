@@ -7,15 +7,21 @@ run_git () {
     shift 2 || true
 
     if [[ "${kind}" == http* ]]; then
+
         local old="${VERBOSE:-0}"
         VERBOSE=0
+
         GIT_TERMINAL_PROMPT=0 run git "$@"
         VERBOSE="${old}"
+
         return $?
+
     fi
     if [[ -n "${ssh_cmd}" ]]; then
+
         GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${ssh_cmd}" run git "$@"
         return $?
+
     fi
 
     GIT_TERMINAL_PROMPT=0 run git "$@"
@@ -97,33 +103,24 @@ git_is_semver () {
     local v="${1:-}" main="" rest="" pre="" build=""
     [[ -n "${v}" ]] || return 1
 
-    if [[ "${v}" == *+* ]]; then
-        main="${v%%+*}"
-        build="${v#*+}"
-    else
-        main="${v}"
-        build=""
+    if [[ "${v}" == *+* ]]; then main="${v%%+*}"; build="${v#*+}"
+    else main="${v}"; build=""
     fi
-    if [[ "${main}" == *-* ]]; then
-        rest="${main%%-*}"
-        pre="${main#*-}"
-    else
-        rest="${main}"
-        pre=""
+    if [[ "${main}" == *-* ]]; then rest="${main%%-*}"; pre="${main#*-}"
+    else rest="${main}"; pre=""
     fi
-    if [[ "${rest}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-        :
-    else
-        return 1
+    if [[ "${rest}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then :
+    else return 1
     fi
 
     if [[ -n "${pre}" ]]; then
 
         local -a ids=()
         IFS='.' read -r -a ids <<< "${pre}"
-        ((${#ids[@]})) || return 1
 
+        ((${#ids[@]})) || return 1
         local id=""
+
         for id in "${ids[@]}"; do
 
             [[ -n "${id}" ]] || return 1
@@ -140,9 +137,10 @@ git_is_semver () {
 
         local -a ids=()
         IFS='.' read -r -a ids <<< "${build}"
-        ((${#ids[@]})) || return 1
 
+        ((${#ids[@]})) || return 1
         local id=""
+
         for id in "${ids[@]}"; do
             [[ -n "${id}" ]] || return 1
             [[ "${id}" =~ ^[0-9A-Za-z-]+$ ]] || return 1
@@ -157,12 +155,14 @@ git_norm_tag () {
 
     local t="${1:-}"
     local core="${t}"
-    [[ -n "${t}" ]] || { printf '%s\n' ""; return 0; }
+
+    (( ${#t} > 1 )) || { printf '\n'; return 0; }
 
     if [[ "${t}" == v* ]]; then
 
         core="${t#v}"
         git_is_semver "${core}" && { printf 'v%s\n' "${core}"; return 0; }
+
         printf '%s\n' "${t}"
         return 0
 

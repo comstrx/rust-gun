@@ -268,9 +268,7 @@ parse_is_reserved_key () {
     local k="${1-}"
 
     case "${k}" in
-        ""|kwargs|argv|schema|key|stype|sreq|sdef|sdef_has|set|alias_to|sdisp|order|pos_order|auto_order|auto_has_opt) return 0 ;;
-        IFS|OPTIND|OPTARG|REPLY|PWD|OLDPWD|PATH|HOME|SHELL|UID|EUID|PPID|BASHPID) return 0 ;;
-        ROOT_DIR|YES|QUIET|VERBOSE|MODULE_DIR|MODULE_CMD|MODULE_ARGS) return 0 ;;
+        ""|kwargs|stype|sreq|sdef|sdef_has|set|alias_to|sdisp|order|pos_order|auto_order|auto_has_opt) return 0 ;;
     esac
 
     return 1
@@ -1150,6 +1148,7 @@ parse_args () {
     parse_args__parse_argv argv pos_order stype alias_to sdisp set
     parse_args__apply_defaults order stype sdef sdef_has sdisp set
     parse_args__validate_and_normalize "${scope}" order stype sreq sdisp set
+
     return 0
 
 }
@@ -1163,6 +1162,7 @@ parse () {
 
         printf '❌ %s\n' "${msg}" >&2
         printf 'return %s 2>/dev/null || exit %s\n' "${code}" "${code}"
+
         exit 0
 
     }

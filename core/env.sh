@@ -127,8 +127,7 @@ input () {
 }
 input_bool () {
 
-    local prompt="${1-}" def="${2-}" tries="${3:-3}"
-    local def_norm="" v="" i=0
+    local prompt="${1-}" def="${2-}" tries="${3:-3}" def_norm="" v="" i=0
 
     case "${def}" in
         1|true|TRUE|True|yes|YES|Yes|y|Y) def_norm="1" ;;
@@ -225,11 +224,10 @@ input_pass () {
     local prompt="${1-}" tty="/dev/tty" line=""
 
     [[ -c "${tty}" && -r "${tty}" && -w "${tty}" ]] || die "input_pass: no /dev/tty" 2
-
     [[ -n "${prompt}" ]] && printf '%s' "${prompt}" >"${tty}"
+
     IFS= read -r -s line <"${tty}" || return $?
     printf '\n' >"${tty}"
-
     printf '%s' "${line}"
 
 }
@@ -323,18 +321,13 @@ choose () {
 
 cd_root () {
 
-    cd -- "${ROOT_DIR}" || die "cd_root: cannot cd to ROOT_DIR='${ROOT_DIR}'"
-
-}
-cd_current_root () {
-
     local root="" dir="" up=0 max_up=50
 
     command -v git >/dev/null 2>&1 && root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
     [[ -n "${root}" && -d "${root}" ]] && { cd -P -- "${root}" || return 1; return 0; }
 
     dir="$(pwd -P 2>/dev/null || true)"
-    [[ -n "${dir}" ]] || { eprint "cd_current_root: cannot resolve PWD"; return 2; }
+    [[ -n "${dir}" ]] || { eprint "cd_root: cannot resolve PWD"; return 2; }
 
     while (( up < max_up )); do
 
@@ -351,13 +344,12 @@ cd_current_root () {
         fi
 
         [[ "${dir}" == "/" ]] && break
-
         dir="$(dirname -- "${dir}")"
         up=$(( up + 1 ))
 
     done
 
-    eprint "cd_current_root: cannot detect root"
+    eprint "cd_root: cannot detect root"
     return 2
 
 }
@@ -401,29 +393,7 @@ run () {
 has () {
 
     local cmd="${1:-}"
-
     [[ -n "${cmd}" ]] || return 1
     command -v -- "${cmd}" >/dev/null 2>&1
-
-}
-trap_on_err () {
-
-    local handler="${1:-}" code="${2:-1}" cmd="${3-}" file="${4-}" line="${5-}"
-
-    trap - ERR
-    [[ -n "${handler}" ]] && declare -F "${handler}" >/dev/null 2>&1 && "${handler}" "${code}" "${cmd}" "${file}" "${line}" || true
-
-    return_or_exit "${code}"
-
-}
-on_err () {
-
-    local handler="${1:-}"
-
-    [[ -n "${handler}" ]] || die "on_err: missing handler function name" 2
-    declare -F "${handler}" >/dev/null 2>&1 || die "on_err: handler not found: ${handler}" 2
-
-    set -E
-    trap 'trap_on_err "'"${handler}"'" "$?" "${BASH_COMMAND}" "${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}" "${LINENO}"' ERR
 
 }

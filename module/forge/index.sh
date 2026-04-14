@@ -1,9 +1,10 @@
 
 cmd_forge_help () {
 
-    info_ln "Scaffold :\n"
+    info_ln "Scaffold :"
 
     printf '    %s\n' \
+        "" \
         "new                        * Create a new project from template" \
         "new-project                * Create a new pure project from template" \
         "new-bin                    * Create a new pure binary project from template" \
@@ -12,16 +13,18 @@ cmd_forge_help () {
         ''
 
 }
-
 cmd_new () {
 
     source <(parse "$@" -- :template name dest placeholders:bool=true git:bool=true)
+
+    forge_ensure_template
 
     template="$(forge_resolve_name "${template}")"
     name="${name:-"$(forge_display_name "${template}")"}"
     dest="$(forge_resolve_dest "${dest}" "${name}")"
 
-    local root="${TEMPLATE_DIR:-}"; local conf="${root}/conf"
+    local root="${TEMPLATE_DIR:-}"
+    local conf="${root}/conf"
     local src="$(forge_resolve_path "${root}" "${template}")"
 
     forge_copy_template "${src}" "${dest}"
@@ -33,6 +36,7 @@ cmd_new () {
     success "OK: ${name} was successfully set up at ${dest}"
 
 }
+
 cmd_new_project () {
 
     source <(parse "$@" -- :template)
@@ -45,6 +49,7 @@ cmd_new_bin () {
     cmd_new "${template}-pure" "${kwargs[@]}"
 
 }
+
 cmd_new_lib () {
 
     source <(parse "$@" -- :template)

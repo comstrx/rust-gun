@@ -1,9 +1,10 @@
 
 cmd_fs_help () {
 
-    info_ln "Files :\n"
+    info_ln "Files :"
 
     printf '    %s\n' \
+        "" \
         "new-dir                    * Create a new directory" \
         "new-file                   * Create a new file" \
         "" \

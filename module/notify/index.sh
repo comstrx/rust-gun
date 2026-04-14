@@ -1,9 +1,10 @@
 
 cmd_notify_help () {
 
-    info_ln "Notify :\n"
+    info_ln "Notify :"
 
     printf '    %s\n' \
+        "" \
         "notify                     * Send notification to configured platforms" \
         "notify-telegram            * Send notification to Telegram" \
         "notify-slack               * Send notification to Slack" \

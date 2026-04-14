@@ -1,9 +1,10 @@
 
 cmd_git_help () {
 
-    info_ln "Git :\n"
+    info_ln "Git :"
 
     printf '    %s\n' \
+        "" \
         "is-repo                    * Check whether current path is a git repository" \
         "repo-root                  * Print repository root path" \
         "root-tag                   * Build tag from current project version" \
@@ -55,7 +56,10 @@ cmd_repo_root () {
 }
 cmd_root_tag () {
 
-    printf '%s\n' "$(git_norm_tag "v$(git_root_version)")"
+    local ver="v$(git_root_version)"
+    local tag="$(git_norm_tag "${ver}")"
+
+    [[ -n "${tag}" ]] && printf '%s\n' "${tag}"
 
 }
 
@@ -196,7 +200,6 @@ cmd_changelog () {
     success "changelog: updated ${file}"
 
 }
-
 cmd_init () {
 
     ensure_tool git
@@ -208,11 +211,8 @@ cmd_init () {
 
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 
-        if git_initial_branch; then
-            run git init -b "${branch}"
-        else
-            run git init
-            git_set_default_branch "${branch}"
+        if git_initial_branch; then run git init -b "${branch}"
+        else run git init; git_set_default_branch "${branch}"
         fi
 
     fi

@@ -188,7 +188,6 @@ bash_find_best_candidate () {
     done
 
     [[ -n "${best_bin}" ]] || return 1
-
     printf '%s\n' "${best_bin}"
 
 }
@@ -280,8 +279,12 @@ bash_install_for_os () {
     local os="${1-}"
 
     case "${os}" in
-        linux) bash_try_pkg_linux || bash_try_pkg_brew ;;
-        macos) bash_try_pkg_brew ;;
+        linux)
+            bash_try_pkg_linux || bash_try_pkg_brew
+        ;;
+        macos)
+            bash_try_pkg_brew
+        ;;
         windows)
             if bash_is_wsl; then
                 bash_try_pkg_linux || bash_try_pkg_brew
@@ -297,15 +300,12 @@ bash_install_for_os () {
 }
 ensure_bash () {
 
-    local req="" cur_ver="" os="" best_bin="" best_ver=""
+    local req="$(bash_ver_norm "${APP_BASH_VERSION:-5.2}")"
+    local cur_ver="$(bash_current_version)"
+    local os="$(bash_os_kind)"
+
     local -a reexec_argv=()
-
-    req="$(bash_ver_norm "${1:-${BASH_MIN_VERSION:-5.2}}")"
-    shift || true
-
     reexec_argv=( "$@" )
-    cur_ver="$(bash_current_version)"
-    os="$(bash_os_kind)"
 
     if bash_ver_ge "${cur_ver}" "${req}"; then
         export BASH_BIN="${BASH:-$(command -v bash 2>/dev/null || true)}"
@@ -325,10 +325,10 @@ ensure_bash () {
     bash_install_for_os "${os}" || bash_die "ensure-bash: failed to install or upgrade bash >= ${req}" 2
     bash_path_bootstrap
 
-    best_bin="$(bash_find_best_candidate "${req}" || true)"
+    local best_bin="$(bash_find_best_candidate "${req}" || true)"
     [[ -n "${best_bin}" ]] || bash_die "ensure-bash: no bash >= ${req} found after install/upgrade" 2
 
-    best_ver="$(bash_version_from_bin "${best_bin}")"
+    local best_ver="$(bash_version_from_bin "${best_bin}")"
     bash_ver_ge "${best_ver}" "${req}" || bash_die "ensure-bash: found bash ${best_ver}, need >= ${req}" 2
 
     export BASH_BOOTSTRAPPED=1

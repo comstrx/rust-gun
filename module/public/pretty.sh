@@ -1,9 +1,10 @@
 
 cmd_pretty_help () {
 
-    info_ln "Pretty :\n"
+    info_ln "Pretty :"
 
     printf '    %s\n' \
+        "" \
         "normalize                  * Remove trailing whitespace in git-tracked files" \
         "" \
         "typo-check                 * Typos check docs and text files" \

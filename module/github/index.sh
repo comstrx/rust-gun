@@ -1,9 +1,10 @@
 
 cmd_github_help () {
 
-    info_ln "GitHub :\n"
+    info_ln "GitHub :"
 
     printf '    %s\n' \
+        "" \
         "env-list                   * List GitHub environments" \
         "var-list                   * List GitHub variables" \
         "secret-list                * List GitHub secrets" \
