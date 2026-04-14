@@ -144,6 +144,6 @@ install () {
     source <(parse "$@" -- :alias="${APP_NAME:-}" force:bool)
 
     local bin="$(install_bin "${alias}" "${force}")"
-    success "Installed: ( ${alias} ) at ${bin}"
+    [[ -n "${bin}" ]] && success "Installed: ( ${alias} ) at ${bin}"
 
 }

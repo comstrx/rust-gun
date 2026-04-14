@@ -37,9 +37,9 @@ build_footer () {
 
     {
         cat -- "entry/install.sh"
-        cat -- "entry/run.sh"
+        cat -- "entry/load.sh"
         printf '\nensure_bash "$@"\n'
-        printf 'run "$@"\n'
+        printf 'load "$@"\n'
         printf 'exit 0\n'
     } >> "${file}"
 

@@ -1,10 +1,10 @@
 
-run_version () {
+load_version () {
 
     printf '%s\n' "${APP_VERSION:-unknown}"
 
 }
-run_norm_name () {
+load_norm_name () {
 
     local s="${1-}"
     [[ -n "${s}" ]] || return 0
@@ -21,7 +21,7 @@ run_norm_name () {
     printf '%s' "${s}"
 
 }
-run_walk_modules () {
+load_walk_modules () {
 
     local dir="${1:-}" path="" ex="" skip=0
     shift || true
@@ -49,7 +49,7 @@ run_walk_modules () {
         (( skip )) && continue
 
         if [[ -d "${path}" ]]; then
-            run_walk_modules "${path}" "$@"
+            load_walk_modules "${path}" "$@"
             continue
         fi
 
@@ -61,7 +61,7 @@ run_walk_modules () {
     done
 
 }
-run_source_modules () {
+load_source_modules () {
 
     local dir="${1:-}" path=""
     local -a modules=()
@@ -69,7 +69,7 @@ run_source_modules () {
     [[ -n "${dir}" ]] || die "Missing module dir"
     [[ -d "${dir}" ]] || die "Invalid module dir: ${dir}"
 
-    mapfile -t modules < <( run_walk_modules "${dir%/}" )
+    mapfile -t modules < <( load_walk_modules "${dir%/}" )
 
     for path in "${modules[@]}"; do
 
@@ -83,7 +83,7 @@ run_source_modules () {
 
 }
 
-run_validate_docs () {
+load_validate_docs () {
 
     local fn="${1:-}" lang="${2:-}" tail=""
 
@@ -108,7 +108,7 @@ run_validate_docs () {
     return 1
 
 }
-run_docs () {
+load_docs () {
 
     local alias="${ALIAS:-${ALIAS_NAME:-${APP_NAME:-"--alias"}}}"
     local line="" fn="" seen_any=0
@@ -136,7 +136,8 @@ run_docs () {
     while IFS= read -r line; do
 
         fn="${line##declare -f }"
-        run_validate_docs "${fn}" "${lang}" || continue
+        load_validate_docs "${fn}" "${lang}" || continue
+
         "${fn}" || true
         seen_any=1
 
@@ -145,23 +146,23 @@ run_docs () {
     (( seen_any )) || printf '%s\n' '(no command docs found)' ''
 
 }
-run_dispatch () {
+load_dispatch () {
 
     local cmd="${1:-}" sub="${2:-}"
     shift || true
 
     case "${cmd}" in
-        help)    run_docs;    return 0 ;;
-        version) run_version; return 0 ;;
+        help)    load_docs;    return 0 ;;
+        version) load_version; return 0 ;;
         install) install "$@"; return 0 ;;
         upgrade) install "$@" --force; return 0 ;;
     esac
 
     local lang="$(which_lang)"
-    local fn="cmd_$(run_norm_name "${cmd}")"
-    local fn_sub="${fn}_$(run_norm_name "${sub}")"
-    local fn_lang="cmd_${lang}_$(run_norm_name "${cmd}")"
-    local fn_sub_lang="${fn_lang}_$(run_norm_name "${sub}")"
+    local fn="cmd_$(load_norm_name "${cmd}")"
+    local fn_sub="${fn}_$(load_norm_name "${sub}")"
+    local fn_lang="cmd_${lang}_$(load_norm_name "${cmd}")"
+    local fn_sub_lang="${fn_lang}_$(load_norm_name "${sub}")"
 
     if declare -F "${fn_sub_lang}" >/dev/null 2>&1; then
         shift || true
@@ -188,7 +189,7 @@ run_dispatch () {
     return 2
 
 }
-run_parse () {
+load_parse () {
 
     YES=0 VERBOSE=0 CMD="" ARGS=()
     local help=0 version=0 install=0 upgrade=0
@@ -202,15 +203,14 @@ run_parse () {
             -i|--install) install=1; shift || true ;;
             -u|--upgrade) upgrade=1; shift || true ;;
             --)           shift || true; break ;;
-            -*)           die "Unknown global flag: ${1}" ;;
             *)            break ;;
         esac
     done
 
-    (( help ))    && { CMD="help";    return 0; }
-    (( version )) && { CMD="version"; return 0; }
-    (( install )) && { CMD="install"; return 0; }
-    (( upgrade )) && { CMD="upgrade"; return 0; }
+    (( help ))    && { CMD="help";    ARGS=( "$@" ); return 0; }
+    (( version )) && { CMD="version"; ARGS=( "$@" ); return 0; }
+    (( install )) && { CMD="install"; ARGS=( "$@" ); return 0; }
+    (( upgrade )) && { CMD="upgrade"; ARGS=( "$@" ); return 0; }
 
     CMD="${1:-}"
     [[ $# -gt 0 ]] && shift || true
@@ -218,12 +218,12 @@ run_parse () {
 
 }
 
-run () {
+load () {
 
     cd_root
-    [[ -d "${MODULE_DIR:-}" ]] && run_source_modules "${MODULE_DIR}"
+    [[ -d "${MODULE_DIR:-}" ]] && load_source_modules "${MODULE_DIR}"
 
-    run_parse "$@"
-    run_dispatch "${CMD}" "${ARGS[@]}"
+    load_parse "$@"
+    load_dispatch "${CMD}" "${ARGS[@]}"
 
 }

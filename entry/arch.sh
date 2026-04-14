@@ -20,4 +20,4 @@ source "${ENTRY_DIR}/../ensure/arch.sh"
 
 source "${ENTRY_DIR}/build.sh"
 source "${ENTRY_DIR}/install.sh"
-source "${ENTRY_DIR}/run.sh"
+source "${ENTRY_DIR}/load.sh"
