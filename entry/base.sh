@@ -4,13 +4,9 @@ VERBOSE="${VERBOSE:-0}"
 
 APP_NAME="gun"
 APP_VERSION="0.1.0"
+
 APP_BASH_VERSION="5.2"
-
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)"
-
-TEMPLATE_KEY="__TEMPLATE_PAYLOAD_KEY__"
-TEMPLATE_DIR="${ROOT_DIR}/template"
-MODULE_DIR="${ROOT_DIR}/module"
+TEMPLATE_PAYLOAD_KEY="__TEMPLATE_PAYLOAD_KEY__"
 
 WORKSPACE_DIR="${WORKSPACE_DIR:-/var/www}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/d/Archive}"

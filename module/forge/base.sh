@@ -234,19 +234,21 @@ forge_resolve_path () {
 
 }
 
-forge_ensure_template () {
+forge_template_dir () {
 
     ensure_pkg awk tail tar mkdir rm dirname
 
-    local src="${0}"
-    [[ -f "${src}" ]] || die "Source bundle not found: ${src}"
-    [[ -d "${TEMPLATE_DIR:-}" ]] && return 0
+    [[ -d "${TEMPLATE_DIR:-}" ]] && { printf '%s\n' "${TEMPLATE_DIR}"; return 0; }
 
-    local key="${TEMPLATE_KEY:-__TEMPLATE_PAYLOAD_KEY__}"
+    local src="${0}"
+    [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]] && src="${BASH_SOURCE[0]}"
+    [[ -f "${src}" ]] || die "Source bundle not found: ${src}"
+
+    local key="${TEMPLATE_PAYLOAD_KEY:-}"
     local line="$(awk -v key="${key}" '$0 == key { print NR + 1; exit }' "${src}" 2>/dev/null || true)"
     [[ -n "${line}" ]] || die "Template payload marker not found"
 
-    local tmp="$(tmp_dir "gun-template")"
+    local tmp="$(tmp_dir "template-installer")"
     local out="${tmp}/template"
 
     ensure_dir "${out}"
@@ -255,14 +257,17 @@ forge_ensure_template () {
         rm -rf -- "${tmp}" >/dev/null 2>&1 || true
         die "Failed to extract template payload"
     }
-    TEMPLATE_DIR="$(cd -- "${out}" 2>/dev/null && pwd -P)" || {
+
+    local dir="$(cd -- "${out}" 2>/dev/null && pwd -P)" || {
         rm -rf -- "${tmp}" >/dev/null 2>&1 || true
-        die "Failed to resolve TEMPLATE_DIR"
+        die "Failed to resolve template dir"
     }
-    [[ -d "${TEMPLATE_DIR}" ]] || {
+    [[ -d "${dir}" ]] || {
         rm -rf -- "${tmp}" >/dev/null 2>&1 || true
         die "Extracted template dir not found"
     }
+
+    printf '%s' "${dir}"
 
 }
 forge_copy_template () {

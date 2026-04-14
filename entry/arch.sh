@@ -4,8 +4,13 @@
 
 ENTRY_LOADED=1
 ENTRY_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)"
 
-source "${ENTRY_DIR}/env.sh"
+MODULE_DIR="${ROOT_DIR}/module"
+TEMPLATE_DIR="${ROOT_DIR}/template"
+ENTRY_POINT="${ROOT_DIR}/exec/run.sh"
+
+source "${ENTRY_DIR}/base.sh"
 
 source "${ENTRY_DIR}/../core/bash.sh"
 ensure_bash "$@"
@@ -15,4 +20,4 @@ source "${ENTRY_DIR}/../ensure/arch.sh"
 
 source "${ENTRY_DIR}/build.sh"
 source "${ENTRY_DIR}/install.sh"
-source "${ENTRY_DIR}/load.sh"
+source "${ENTRY_DIR}/run.sh"

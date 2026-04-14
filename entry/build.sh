@@ -9,7 +9,7 @@ build_header () {
     {
         printf '#!/usr/bin/env bash\n'
         printf 'set -Eeuo pipefail\n'
-        cat -- "entry/env.sh"
+        cat -- "entry/base.sh"
     } > "${file}" || return 1
 
 }
@@ -36,9 +36,10 @@ build_footer () {
     local file="${1:-}"
 
     {
-        cat -- "entry/load.sh"
+        cat -- "entry/install.sh"
+        cat -- "entry/run.sh"
         printf '\nensure_bash "$@"\n'
-        printf 'load_run "$@"\n'
+        printf 'run "$@"\n'
         printf 'exit 0\n'
     } >> "${file}"
 
@@ -48,14 +49,15 @@ build_template () {
     local file="${1:-}"
 
     {
-        printf '\n%s\n' "${TEMPLATE_KEY}"
+        printf '\n%s\n' "${TEMPLATE_PAYLOAD_KEY}"
         tar -czf - -C "$(dirname -- "${TEMPLATE_DIR}")" "$(basename -- "${TEMPLATE_DIR}")"
     } >> "${file}"
 
 }
 build () {
 
-    local out="${1:-run}"
+    local out="${1:-}"
+    [[ -n "${out}" ]] || out="release/${APP_NAME:-run}.sh"
     [[ "${out}" == *.sh ]] || out="${out}.sh"
 
     build_header   "${out}"

@@ -278,10 +278,10 @@ which_lang () {
 
 tmp_dir () {
 
-    local tag="${1:-tmp}" base="${2:-${TMPDIR:-/tmp}}" tmp=""
+    local tag="${1:-tmp}" base="${2:-${TMPDIR:-/tmp}}"
 
     mkdir -p "${base}" 2>/dev/null || true
-    tmp="$(mktemp -d "${base%/}/${tag}.XXXXXX" 2>/dev/null || true)"
+    local tmp="$(mktemp -d "${base%/}/${tag}.XXXXXX" 2>/dev/null || true)"
 
     if [[ -z "${tmp}" || ! -d "${tmp}" ]]; then
         tmp="${base%/}/${tag}.$$.$RANDOM"
@@ -294,10 +294,10 @@ tmp_dir () {
 }
 tmp_file () {
 
-    local tag="${1:-tmp}" base="${2:-${TMPDIR:-/tmp}}" dir="" tmp=""
+    local tag="${1:-tmp}" base="${2:-${TMPDIR:-/tmp}}"
 
-    dir="$(tmp_dir "${tag}" "${base}")"
-    tmp="$(mktemp "${dir%/}/${tag}.XXXXXX" 2>/dev/null || true)"
+    local dir="$(tmp_dir "${tag}" "${base}")"
+    local tmp="$(mktemp "${dir%/}/${tag}.XXXXXX" 2>/dev/null || true)"
 
     if [[ -z "${tmp}" || ! -f "${tmp}" ]]; then
         tmp="${dir%/}/${tag}"
