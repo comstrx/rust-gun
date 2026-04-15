@@ -6,6 +6,7 @@ install_confirm () {
     [[ -n "${bin}" ]] || die "Missing install target"
     [[ -L "${bin}" ]] && die "Refusing to overwrite symlink ${bin}"
     [[ -e "${bin}" && ! -f "${bin}" ]] && die "Refusing non-file target ${bin}"
+
     [[ -e "${bin}" ]] && (( ! force )) && { confirm "Overwrite ${bin}?" || die "Canceled."; }
 
 }
@@ -100,13 +101,12 @@ install_write_src () {
 
     local out="${1:-}" src=""
 
-    [[ -n "${0:-}" && -f "${0}" ]] && src="${0}"
-    [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]] && src="${BASH_SOURCE[0]}"
+    [[ -n "${BASH_SOURCE[0]:-}" && -r "${BASH_SOURCE[0]}" ]] && src="${BASH_SOURCE[0]}"
+    [[ -z "${src}" && -n "${0:-}" && -r "${0}" ]] && src="${0}"
 
-    if [[ -n "${src}" ]]; then cat -- "${src}" > "${out}" || die "Failed to copy: ${src}"
-    else cat > "${out}" || die "Failed reading script from stdin"
-    fi
+    [[ -n "${src}" ]] || die "Cannot self-install from stdin. Use: bash <(curl -fsSL URL) --install --alias gun"
 
+    cat -- "${src}" > "${out}" || die "Failed to copy: ${src}"
     [[ -s "${out}" ]] || die "Invalid source code"
 
 }
