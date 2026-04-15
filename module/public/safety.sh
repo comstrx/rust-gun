@@ -24,7 +24,6 @@ cmd_leaks () {
 
     config="${config:-"$(config_file gitleaks toml)"}"
     [[ -f "${config}" ]] && cmd+=( --config "${config}" )
-
     [[ -n "${baseline}" ]] && cmd+=( --baseline-path "${baseline}" )
     [[ -n "${redact}" ]] && cmd+=( --redact="${redact}" )
 
@@ -49,7 +48,6 @@ cmd_trivy () {
 
     config="${config:-"$(config_file trivy yaml yml)"}"
     [[ -f "${config}" ]] && cmd+=( --config "${config}" )
-
     [[ -n "${severity}" ]] && cmd+=( --severity "${severity}" )
     [[ -n "${scanners}" ]] && cmd+=( --scanners "${scanners}" )
 
@@ -75,6 +73,7 @@ cmd_sbom () {
     config="${config:-"$(config_file syft yaml yml)"}"
     [[ -f "${config}" ]] && cmd+=( --config "${config}" )
     [[ "${out}" != "/dev/stdout" && "${out}" == */* ]] && ensure_dir "${out%/*}"
+
     run syft scan -o "${format}=${out}" "${cmd[@]}" "${kwargs[@]}" -- "${src:-dir:.}"
 
 }

@@ -74,6 +74,7 @@ load_source_modules () {
     for path in "${modules[@]}"; do
 
         [[ "${path}" == *.sh ]] || die "Invalid .sh file: ${path}"
+
         [[ -f "${path}" ]] || die "Invalid file: ${path}"
         [[ -L "${path}" ]] && die "Refusing symlink: ${path}"
 
@@ -91,9 +92,12 @@ load_validate_docs () {
 
     case "${fn}" in
         cmd_"${lang}"_*_usage|cmd_"${lang}"_*_help)
+
             return 0
+
         ;;
         cmd_*_usage|cmd_*_help)
+
             tail="${fn#cmd_}"
             tail="${tail%_usage}"
             tail="${tail%_help}"
@@ -102,6 +106,7 @@ load_validate_docs () {
             [[ "${tail}" != *_* ]] || return 1
 
             return 0
+
         ;;
     esac
 
@@ -116,21 +121,20 @@ load_docs () {
 
     info_ln "Usage:"
 
-    printf '%s\n' \
+    printf '    %s\n' \
         "" \
-        "    ${alias} [--yes] [--verbose] <cmd> [args...]" \
+        "${alias} [--yes] [--verbose] <cmd> [args...]" \
         ''
 
     info_ln "Global:"
 
-    printf '%s\n' \
+    printf '    %s\n' \
         "" \
-        '    --yes,     -y      * Non-interactive (assume yes)' \
-        '    --verbose, -r      * Print executed commands' \
-        '    --help,    -h      * Show help docs' \
-        '    --version, -v      * Show version' \
-        "    --install, -i      * Install ${alias} at ~/.local/bin/" \
-        "    --upgrade, -u      * Upgrade ${alias} and update ~/.local/bin/" \
+        '--yes                      * Non-interactive (assume yes)' \
+        '--verbose                  * Print executed commands' \
+        '--help,                    * Show help docs' \
+        '--version                  * Show version' \
+        "--install                  * Install ${alias} at ~/.local/bin/" \
         ''
 
     while IFS= read -r line; do
@@ -155,7 +159,6 @@ load_dispatch () {
         help)    load_docs;    return 0 ;;
         version) load_version; return 0 ;;
         install) install "$@"; return 0 ;;
-        upgrade) install "$@" --force; return 0 ;;
     esac
 
     local lang="$(which_lang)"
@@ -192,29 +195,36 @@ load_dispatch () {
 load_parse () {
 
     YES=0 VERBOSE=0 CMD="" ARGS=()
-    local help=0 version=0 install=0 upgrade=0
+
+    local help=0 version=0 install=0 after_dd=0
+    local -a rest=()
 
     while [[ $# -gt 0 ]]; do
+
+        if (( after_dd )); then
+            rest+=( "${1}" )
+            shift || true
+            continue
+        fi
+
         case "${1}" in
-            -y|--yes)     YES=1;     shift || true ;;
-            -r|--verbose) VERBOSE=1; shift || true ;;
-            -h|--help)    help=1;    shift || true ;;
-            -v|--version) version=1; shift || true ;;
-            -i|--install) install=1; shift || true ;;
-            -u|--upgrade) upgrade=1; shift || true ;;
-            --)           shift || true; break ;;
-            *)            break ;;
+            --yes)     YES=1;            shift || true ;;
+            --verbose) VERBOSE=1;        shift || true ;;
+            --help)    help=1;           shift || true ;;
+            --version) version=1;        shift || true ;;
+            --install) install=1;        shift || true ;;
+            --)        after_dd=1;       shift || true ;;
+            *)         rest+=( "${1}" ); shift || true ;;
         esac
+
     done
 
-    (( help ))    && { CMD="help";    ARGS=( "$@" ); return 0; }
-    (( version )) && { CMD="version"; ARGS=( "$@" ); return 0; }
-    (( install )) && { CMD="install"; ARGS=( "$@" ); return 0; }
-    (( upgrade )) && { CMD="upgrade"; ARGS=( "$@" ); return 0; }
+    (( help ))    && { CMD="help";    ARGS=( "${rest[@]}" ); return 0; }
+    (( version )) && { CMD="version"; ARGS=( "${rest[@]}" ); return 0; }
+    (( install )) && { CMD="install"; ARGS=( "${rest[@]}" ); return 0; }
 
-    CMD="${1:-}"
-    [[ $# -gt 0 ]] && shift || true
-    ARGS=( "$@" )
+    CMD="${rest[0]:-}"
+    (( ${#rest[@]} > 0 )) && ARGS=( "${rest[@]:1}" )
 
 }
 

@@ -113,7 +113,6 @@ cmd_synced () {
     fs_path_exists "${src}" && fs_synced_path "${src}" "${dest}" "${kwargs[@]}"
 
 }
-
 cmd_compress () {
 
     source <(parse "$@" -- src)

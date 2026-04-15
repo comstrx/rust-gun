@@ -6965,6 +6965,7 @@ cmd_synced () {
     fs_path_exists "${src}" && fs_synced_path "${src}" "${dest}" "${kwargs[@]}"
 
 }
+
 cmd_compress () {
 
     source <(parse "$@" -- src)
@@ -8862,6 +8863,7 @@ cmd_clear_secrets () {
 cmd_new_repo () {
 
     source <(parse "$@" -- sync:bool=true)
+
     gh_new_repo "${kwargs[@]}"
 
     (( sync )) && {
@@ -9110,6 +9112,7 @@ cmd_notify () {
     )
 
     local p="" msg="${message:-"$(notify_message "${status}" "${title}")"}"
+
     local -a plats=() failed=()
 
     local -a args=(
@@ -9231,6 +9234,7 @@ cmd_normalize () {
             my $dir = dirname($path);
             my ($tmpfh, $tmp) = tempfile(".wsfix.XXXXXX", DIR => $dir, UNLINK => 0) or do { $ec = 1; next; };
             binmode($tmpfh);
+
             print $tmpfh $data or do { close $tmpfh; unlink($tmp); $ec = 1; next; };
             close $tmpfh or do { unlink($tmp); $ec = 1; next; };
             my @st = stat($path);
@@ -9348,6 +9352,7 @@ cmd_leaks () {
 
     config="${config:-"$(config_file gitleaks toml)"}"
     [[ -f "${config}" ]] && cmd+=( --config "${config}" )
+
     [[ -n "${baseline}" ]] && cmd+=( --baseline-path "${baseline}" )
     [[ -n "${redact}" ]] && cmd+=( --redact="${redact}" )
 
@@ -9372,6 +9377,7 @@ cmd_trivy () {
 
     config="${config:-"$(config_file trivy yaml yml)"}"
     [[ -f "${config}" ]] && cmd+=( --config "${config}" )
+
     [[ -n "${severity}" ]] && cmd+=( --severity "${severity}" )
     [[ -n "${scanners}" ]] && cmd+=( --scanners "${scanners}" )
 
@@ -9397,20 +9403,19 @@ cmd_sbom () {
     config="${config:-"$(config_file syft yaml yml)"}"
     [[ -f "${config}" ]] && cmd+=( --config "${config}" )
     [[ "${out}" != "/dev/stdout" && "${out}" == */* ]] && ensure_dir "${out%/*}"
-
     run syft scan -o "${format}=${out}" "${cmd[@]}" "${kwargs[@]}" -- "${src:-dir:.}"
 
 }
 
 install_confirm () {
 
-    local bin="${1:-}"
+    local bin="${1:-}" force="${2:-0}"
 
     [[ -n "${bin}" ]] || die "Missing install target"
     [[ -L "${bin}" ]] && die "Refusing to overwrite symlink ${bin}"
     [[ -e "${bin}" && ! -f "${bin}" ]] && die "Refusing non-file target ${bin}"
 
-    [[ -e "${bin}" ]] && (( ! YES )) && { confirm "Overwrite ${bin} ?" || die "Canceled"; }
+    [[ -e "${bin}" ]] && (( ! force )) && { confirm "Overwrite ${bin}?" || die "Canceled."; }
 
 }
 install_line_once () {
@@ -9462,10 +9467,7 @@ install_line_once () {
     LC_ALL=C grep -Fqx -- "${line}"      "${file}" 2>/dev/null && { rm -f -- "${lock_file}" 2>/dev/null || true; return 0; }
     LC_ALL=C grep -Fqx -- "${line}"$'\r' "${file}" 2>/dev/null && { rm -f -- "${lock_file}" 2>/dev/null || true; return 0; }
 
-    local tmp="$(mktemp "${dir}/.tmp.install.XXXXXX")" || {
-        rm -f -- "${lock_file}" 2>/dev/null || true
-        die "mktemp failed in ${dir}"
-    }
+    local tmp="$(mktemp "${dir}/.tmp.install.XXXXXX")" || { rm -f -- "${lock_file}" 2>/dev/null || true; die "mktemp failed in ${dir}"; }
 
     {
         cat -- "${file}"
@@ -9521,13 +9523,15 @@ install_bin () {
     ensure_tool chmod mkdir mv rm mktemp cat
 
     local alias="${1:-}"
+    local force="${2:-0}"
+
     local rc="$(rc_path)"
     local bin_dir="$(home_path)/.local/bin"
     local bin="${bin_dir}/${alias}"
 
     validate_alias "${alias}"
     ensure_dir "${bin_dir}"
-    install_confirm "${bin}"
+    install_confirm "${bin}" "${force}"
 
     local tmp="$(mktemp "${bin_dir}/.tmp.${alias}.XXXXXX")" || die "Creating mktemp failed in ${bin_dir}"
 
@@ -9545,8 +9549,9 @@ install_bin () {
 
 install () {
 
-    local alias="${1:-${APP_NAME:-}}"
-    local bin="$(install_bin "${alias}")"
+    source <(parse "$@" -- :alias="${APP_NAME:-}" force:bool)
+
+    local bin="$(install_bin "${alias}" "${force}")"
     [[ -n "${bin}" ]] && success "Installed: ( ${alias} ) at ${bin}"
 
 }
@@ -9626,7 +9631,6 @@ load_source_modules () {
     for path in "${modules[@]}"; do
 
         [[ "${path}" == *.sh ]] || die "Invalid .sh file: ${path}"
-
         [[ -f "${path}" ]] || die "Invalid file: ${path}"
         [[ -L "${path}" ]] && die "Refusing symlink: ${path}"
 
@@ -9644,12 +9648,9 @@ load_validate_docs () {
 
     case "${fn}" in
         cmd_"${lang}"_*_usage|cmd_"${lang}"_*_help)
-
             return 0
-
         ;;
         cmd_*_usage|cmd_*_help)
-
             tail="${fn#cmd_}"
             tail="${tail%_usage}"
             tail="${tail%_help}"
@@ -9658,7 +9659,6 @@ load_validate_docs () {
             [[ "${tail}" != *_* ]] || return 1
 
             return 0
-
         ;;
     esac
 
@@ -9673,20 +9673,21 @@ load_docs () {
 
     info_ln "Usage:"
 
-    printf '    %s\n' \
+    printf '%s\n' \
         "" \
-        "${alias} [--yes] [--verbose] <cmd> [args...]" \
+        "    ${alias} [--yes] [--verbose] <cmd> [args...]" \
         ''
 
     info_ln "Global:"
 
-    printf '    %s\n' \
+    printf '%s\n' \
         "" \
-        '--yes                      * Non-interactive (assume yes)' \
-        '--verbose                  * Print executed commands' \
-        '--help,                    * Show help docs' \
-        '--version                  * Show version' \
-        "--install                  * Install ${alias} at ~/.local/bin/" \
+        '    --yes,     -y      * Non-interactive (assume yes)' \
+        '    --verbose, -r      * Print executed commands' \
+        '    --help,    -h      * Show help docs' \
+        '    --version, -v      * Show version' \
+        "    --install, -i      * Install ${alias} at ~/.local/bin/" \
+        "    --upgrade, -u      * Upgrade ${alias} and update ~/.local/bin/" \
         ''
 
     while IFS= read -r line; do
@@ -9711,6 +9712,7 @@ load_dispatch () {
         help)    load_docs;    return 0 ;;
         version) load_version; return 0 ;;
         install) install "$@"; return 0 ;;
+        upgrade) install "$@" --force; return 0 ;;
     esac
 
     local lang="$(which_lang)"
@@ -9747,36 +9749,29 @@ load_dispatch () {
 load_parse () {
 
     YES=0 VERBOSE=0 CMD="" ARGS=()
-
-    local help=0 version=0 install=0 after_dd=0
-    local -a rest=()
+    local help=0 version=0 install=0 upgrade=0
 
     while [[ $# -gt 0 ]]; do
-
-        if (( after_dd )); then
-            rest+=( "${1}" )
-            shift || true
-            continue
-        fi
-
         case "${1}" in
-            --yes)     YES=1;            shift || true ;;
-            --verbose) VERBOSE=1;        shift || true ;;
-            --help)    help=1;           shift || true ;;
-            --version) version=1;        shift || true ;;
-            --install) install=1;        shift || true ;;
-            --)        after_dd=1;       shift || true ;;
-            *)         rest+=( "${1}" ); shift || true ;;
+            -y|--yes)     YES=1;     shift || true ;;
+            -r|--verbose) VERBOSE=1; shift || true ;;
+            -h|--help)    help=1;    shift || true ;;
+            -v|--version) version=1; shift || true ;;
+            -i|--install) install=1; shift || true ;;
+            -u|--upgrade) upgrade=1; shift || true ;;
+            --)           shift || true; break ;;
+            *)            break ;;
         esac
-
     done
 
-    (( help ))    && { CMD="help";    ARGS=( "${rest[@]}" ); return 0; }
-    (( version )) && { CMD="version"; ARGS=( "${rest[@]}" ); return 0; }
-    (( install )) && { CMD="install"; ARGS=( "${rest[@]}" ); return 0; }
+    (( help ))    && { CMD="help";    ARGS=( "$@" ); return 0; }
+    (( version )) && { CMD="version"; ARGS=( "$@" ); return 0; }
+    (( install )) && { CMD="install"; ARGS=( "$@" ); return 0; }
+    (( upgrade )) && { CMD="upgrade"; ARGS=( "$@" ); return 0; }
 
-    CMD="${rest[0]:-}"
-    (( ${#rest[@]} > 0 )) && ARGS=( "${rest[@]:1}" )
+    CMD="${1:-}"
+    [[ $# -gt 0 ]] && shift || true
+    ARGS=( "$@" )
 
 }
 

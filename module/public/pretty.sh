@@ -56,7 +56,6 @@ cmd_normalize () {
             my $dir = dirname($path);
             my ($tmpfh, $tmp) = tempfile(".wsfix.XXXXXX", DIR => $dir, UNLINK => 0) or do { $ec = 1; next; };
             binmode($tmpfh);
-
             print $tmpfh $data or do { close $tmpfh; unlink($tmp); $ec = 1; next; };
             close $tmpfh or do { unlink($tmp); $ec = 1; next; };
             my @st = stat($path);

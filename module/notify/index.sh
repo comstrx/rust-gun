@@ -24,7 +24,6 @@ cmd_notify () {
     )
 
     local p="" msg="${message:-"$(notify_message "${status}" "${title}")"}"
-
     local -a plats=() failed=()
 
     local -a args=(

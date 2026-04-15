@@ -1,13 +1,13 @@
 
 install_confirm () {
 
-    local bin="${1:-}" force="${2:-0}"
+    local bin="${1:-}"
 
     [[ -n "${bin}" ]] || die "Missing install target"
     [[ -L "${bin}" ]] && die "Refusing to overwrite symlink ${bin}"
     [[ -e "${bin}" && ! -f "${bin}" ]] && die "Refusing non-file target ${bin}"
 
-    [[ -e "${bin}" ]] && (( ! force )) && { confirm "Overwrite ${bin}?" || die "Canceled."; }
+    [[ -e "${bin}" ]] && (( ! YES )) && { confirm "Overwrite ${bin} ?" || die "Canceled"; }
 
 }
 install_line_once () {
@@ -59,7 +59,10 @@ install_line_once () {
     LC_ALL=C grep -Fqx -- "${line}"      "${file}" 2>/dev/null && { rm -f -- "${lock_file}" 2>/dev/null || true; return 0; }
     LC_ALL=C grep -Fqx -- "${line}"$'\r' "${file}" 2>/dev/null && { rm -f -- "${lock_file}" 2>/dev/null || true; return 0; }
 
-    local tmp="$(mktemp "${dir}/.tmp.install.XXXXXX")" || { rm -f -- "${lock_file}" 2>/dev/null || true; die "mktemp failed in ${dir}"; }
+    local tmp="$(mktemp "${dir}/.tmp.install.XXXXXX")" || {
+        rm -f -- "${lock_file}" 2>/dev/null || true
+        die "mktemp failed in ${dir}"
+    }
 
     {
         cat -- "${file}"
@@ -115,15 +118,13 @@ install_bin () {
     ensure_tool chmod mkdir mv rm mktemp cat
 
     local alias="${1:-}"
-    local force="${2:-0}"
-
     local rc="$(rc_path)"
     local bin_dir="$(home_path)/.local/bin"
     local bin="${bin_dir}/${alias}"
 
     validate_alias "${alias}"
     ensure_dir "${bin_dir}"
-    install_confirm "${bin}" "${force}"
+    install_confirm "${bin}"
 
     local tmp="$(mktemp "${bin_dir}/.tmp.${alias}.XXXXXX")" || die "Creating mktemp failed in ${bin_dir}"
 
@@ -141,9 +142,8 @@ install_bin () {
 
 install () {
 
-    source <(parse "$@" -- :alias="${APP_NAME:-}" force:bool)
-
-    local bin="$(install_bin "${alias}" "${force}")"
+    local alias="${1:-${APP_NAME:-}}"
+    local bin="$(install_bin "${alias}")"
     [[ -n "${bin}" ]] && success "Installed: ( ${alias} ) at ${bin}"
 
 }

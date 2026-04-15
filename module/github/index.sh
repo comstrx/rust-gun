@@ -94,7 +94,6 @@ cmd_clear_secrets () {
 cmd_new_repo () {
 
     source <(parse "$@" -- sync:bool=true)
-
     gh_new_repo "${kwargs[@]}"
 
     (( sync )) && {
