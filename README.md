@@ -6,6 +6,10 @@
   <br/>
 </div>
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/comstrx/rust-gun/main/release/gun.sh -o /tmp/gun.sh && bash /tmp/gun.sh --install <your-alias>
+```
+
 ### ⚡ A production-grade `Rust manager tool` blueprint
 
 - The strongest Rust bin/lib/workspace structure in the world — with a magic CLI tool. 🔥
