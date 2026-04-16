@@ -11,19 +11,19 @@ forge_replace_all () {
     local -n map="${map_name}"
     ((${#map[@]})) || return 0
 
-    local -a ignore_list=( .git target node_modules dist build vendor .next .nuxt .venv venv .vscode __pycache__ )
-    local -a find_cmd=( find "${root}" -type d "(" )
-
     local kv="$(mktemp "${TMPDIR:-/tmp}/replace.map.XXXXXX")" || die "replace: mktemp failed"
-    trap 'rm -rf -- "${kv}" 2>/dev/null || true; trap - RETURN' RETURN
     : > "${kv}" || { rm -f "${kv}" 2>/dev/null || true; die "replace: cannot write tmp file"; }
 
     for k in "${!map[@]}"; do
-        [[ "${k}" != *$'\0'* && "${map["${k}"]}" != *$'\0'* ]] || die "replace: NUL not allowed in map"
-        printf '%s\0%s\0' "${k}" "${map["${k}"]}" >> "${kv}"
+        printf '%s\0%s\0' "${k}" "${map["${k}"]}" >> "${kv}" || {
+            rm -f -- "${kv}" 2>/dev/null || true
+            die "replace: cannot write map"
+        }
     done
 
-    for ig in "${ignore_list[@]}"; do find_cmd+=( -name "${ig}" -o ); done
+    local -a find_cmd=( find "${root}" -type d "(" )
+
+    while IFS= read -r ig; do find_cmd+=( -name "${ig}" -o ); done < <(ignore_list)
     find_cmd+=( -false ")" -prune -o -type f ! -lname '*' -print0 )
 
     while IFS= read -r -d '' f; do any=1; break; done < <("${find_cmd[@]}")
@@ -36,12 +36,14 @@ forge_replace_all () {
 
             my $kv = $ENV{KV_FILE} // "";
             open my $fh, "<", $kv or die "kv open failed: $kv";
+
             local $/;
             my $buf = <$fh>;
             close $fh;
 
             my @p = split(/\0/, $buf, -1);
             pop @p if @p && $p[-1] eq "";
+
             die "kv pairs mismatch\n" if @p % 2;
 
             for (my $i = 0; $i < @p; $i += 2) {
@@ -56,20 +58,38 @@ forge_replace_all () {
         }
     ' || { rm -f "${kv}" 2>/dev/null || true; die "replace failed"; }
 
+    rm -f -- "${kv}" 2>/dev/null || true
+
+}
+forge_default_branch () {
+
+    ensure_tool git
+    local root="${1:-}" b=""
+
+    if [[ -e "${root}/.git" ]]; then
+
+        b="$(cd -- "${root}" && git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+        b="${b#origin/}"
+
+        [[ -n "${b}" ]] || b="$(cd -- "${root}" && git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        [[ "${b}" == "HEAD" ]] && b=""
+
+    fi
+
+    [[ -n "${b}" ]] || b="main"
+    printf '%s\n' "${b}"
+
 }
 forge_placeholders () {
 
-    source <(parse "$@" -- :root :name alias user repo branch description discord_url docs_url site_url host)
-
-    [[ -n "${repo}"   ]] || repo="${name}"
-    [[ -n "${alias}"  ]] || alias="${name}"
-    [[ -n "${host}"   ]] || host="https://github.com"
-    [[ "${host}" == *"://"* ]] || host="https://${host}"
-    [[ -n "${branch}" ]] || branch="$(git_default_branch "${root}")"
-
-    cd -- "${root}" || die "set_placeholders: cannot cd to ${root}"
+    source <(parse "$@" -- :root :name user repo branch description discord_url docs_url site_url host)
 
     local -A ph_map=()
+
+    [[ -n "${repo}"   ]] || repo="${name}"
+    [[ -n "${branch}" ]] || branch="$(forge_default_branch "${root}")"
+    [[ -n "${host}"   ]] || host="https://github.com"
+    [[ "${host}" == *"://"* ]] || host="https://${host}"
 
     append () {
 
@@ -101,7 +121,6 @@ forge_placeholders () {
 
     append "year"         "$(date +%Y)"
     append "name"         "${name}"
-    append "alias"        "${alias}"
     append "user"         "${user}"
     append "repo"         "${repo}"
     append "branch"       "${branch}"
@@ -166,7 +185,7 @@ forge_init_git () {
 
     source <(parse "$@" -- :root :name repo branch)
 
-    cd -- "${root}" || die "set_git: cannot cd to ${root}"
+    cd -- "${root}" || die "forge_init_git: cannot cd to ${root}"
     cmd_init "${repo:-${name}}" "${kwargs[@]}"
 
 }
@@ -181,14 +200,16 @@ forge_resolve_name () {
     name="${name,,}"
 
     name="${name//-app/-pure}"
+    name="${name//-bin/-pure}"
     name="${name//-project/-pure}"
-    name="${name//-framework/-web}"
+    name="${name//-empty/-pure}"
     name="${name//-package/-lib}"
     name="${name//-crate/-lib}"
     name="${name//-workspace/-ws}"
     name="${name//-monorepo/-ws}"
+    name="${name//-framework/-web}"
 
-    printf '%s\n' "${name}"
+    printf '%s\n' "${name#-}"
 
 }
 forge_display_name () {
@@ -204,30 +225,52 @@ forge_resolve_dest () {
 
     local dir="${1:-}" name="${2:-}"
 
-    dir="${dir:-${WORKSPACE_DIR:-}}"
+    if [[ -n "${dir}" ]]; then
+
+        dir="${dir/#\~/${HOME}}"
+        dir="${dir%/}"
+        [[ "${dir##*/}" == "${name}" ]] || dir="${dir}/${name}"
+
+        printf '%s\n' "${dir}"
+        return 0
+
+    fi
+
+    dir="${WORKSPACE_DIR:-}"
     dir="${dir/#\~/${HOME}}"
     dir="${dir%/}"
 
-    ensure_dir "${dir}"
-    dir="${dir}/${name}"
-
-    printf '%s\n' "${dir}"
+    printf '%s\n' "${dir}/${name}"
 
 }
 forge_resolve_path () {
 
-    local root="${1:-}" name="${2:-}" base="" try=""
+    local root="${1:-}" name="${2:-}" type="${3:-}" base="" try=""
 
-    for base in "pure" "web" "lib" "ws"; do
+    if [[ -n "${type}" ]]; then
 
-        try="${base}/${name}"
-        [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
-        [[ "${name}" == *-"${base}" ]] || continue
+        type="$(forge_resolve_name "-${type}")"
 
-        try="${base}/${name%-${base}}"
+        try="${type}/${name%-${type}}"
         [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
 
-    done
+        try="${type}/${name%%-*}"
+        [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+
+    else
+
+        for base in "pure" "web" "lib" "ws"; do
+
+            try="${base}/${name}"
+            [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+            [[ "${name}" == *-"${base}" ]] || continue
+
+            try="${base}/${name%-${base}}"
+            [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+
+        done
+
+    fi
 
     printf '%s\n' ""
     return 1
@@ -343,8 +386,10 @@ forge_copy_config () {
 
     source <(parse "$@" -- \
         :name :config_dir :dest_dir \
-        env:bool=true docs:bool=true license:bool=true pretty:bool=true safety:bool=true \
-        format:bool=true lint:bool=true audit:bool=true coverage:bool=true github:bool=true docker:bool=false \
+        env:bool=true docs:bool=true license:bool=true \
+        github:bool=true docker:bool=false \
+        pretty:bool=true safety:bool=true format:bool=true \
+        lint:bool=true audit:bool=true coverage:bool=true \
     )
 
     [[ -e "${config_dir}" ]] || die "cannot resolve config src: ${config_dir}"

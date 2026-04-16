@@ -203,7 +203,7 @@ cmd_changelog () {
 cmd_init () {
 
     ensure_tool git
-    source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool=true)
+    source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool)
 
     local path="" url="" parsed=0 explicit=0 before_url="" after_url="" cur=""
     auth="${auth:-${GIT_AUTH:-ssh}}"
@@ -228,7 +228,7 @@ cmd_init () {
     fi
 
     before_url="$(git_remote_url "${remote}")"
-    (( create )) && (( explicit == 0 )) && cmd_new_repo --repo "${repo}" "${kwargs[@]}"
+    (( create )) && (( explicit == 0 )) && cmd_new_repo "${repo}" "${kwargs[@]}"
     after_url="$(git_remote_url "${remote}")"
 
     if (( explicit == 0 )) && (( create )) && [[ -n "${after_url}" && "${after_url}" != "${before_url}" ]]; then

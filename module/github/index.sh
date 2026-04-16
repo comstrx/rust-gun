@@ -93,12 +93,12 @@ cmd_clear_secrets () {
 
 cmd_new_repo () {
 
-    source <(parse "$@" -- sync:bool=true)
-    gh_new_repo "${kwargs[@]}"
+    source <(parse "$@" -- :name sync:bool=true)
+    gh_new_repo "${name}" "${kwargs[@]}"
 
     (( sync )) && {
-        cmd_sync_vars "${kwargs[@]}"
-        cmd_sync_secrets "${kwargs[@]}"
+        cmd_sync_vars    --repo "${name}" "${kwargs[@]}"
+        cmd_sync_secrets --repo "${name}" "${kwargs[@]}"
     }
 
 }

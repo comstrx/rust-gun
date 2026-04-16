@@ -5956,19 +5956,19 @@ forge_replace_all () {
     local -n map="${map_name}"
     ((${#map[@]})) || return 0
 
-    local -a ignore_list=( .git target node_modules dist build vendor .next .nuxt .venv venv .vscode __pycache__ )
-    local -a find_cmd=( find "${root}" -type d "(" )
-
     local kv="$(mktemp "${TMPDIR:-/tmp}/replace.map.XXXXXX")" || die "replace: mktemp failed"
-    trap 'rm -rf -- "${kv}" 2>/dev/null || true; trap - RETURN' RETURN
     : > "${kv}" || { rm -f "${kv}" 2>/dev/null || true; die "replace: cannot write tmp file"; }
 
     for k in "${!map[@]}"; do
-        [[ "${k}" != *$'\0'* && "${map["${k}"]}" != *$'\0'* ]] || die "replace: NUL not allowed in map"
-        printf '%s\0%s\0' "${k}" "${map["${k}"]}" >> "${kv}"
+        printf '%s\0%s\0' "${k}" "${map["${k}"]}" >> "${kv}" || {
+            rm -f -- "${kv}" 2>/dev/null || true
+            die "replace: cannot write map"
+        }
     done
 
-    for ig in "${ignore_list[@]}"; do find_cmd+=( -name "${ig}" -o ); done
+    local -a find_cmd=( find "${root}" -type d "(" )
+
+    while IFS= read -r ig; do find_cmd+=( -name "${ig}" -o ); done < <(ignore_list)
     find_cmd+=( -false ")" -prune -o -type f ! -lname '*' -print0 )
 
     while IFS= read -r -d '' f; do any=1; break; done < <("${find_cmd[@]}")
@@ -5981,12 +5981,14 @@ forge_replace_all () {
 
             my $kv = $ENV{KV_FILE} // "";
             open my $fh, "<", $kv or die "kv open failed: $kv";
+
             local $/;
             my $buf = <$fh>;
             close $fh;
 
             my @p = split(/\0/, $buf, -1);
             pop @p if @p && $p[-1] eq "";
+
             die "kv pairs mismatch\n" if @p % 2;
 
             for (my $i = 0; $i < @p; $i += 2) {
@@ -6001,20 +6003,38 @@ forge_replace_all () {
         }
     ' || { rm -f "${kv}" 2>/dev/null || true; die "replace failed"; }
 
+    rm -f -- "${kv}" 2>/dev/null || true
+
+}
+forge_default_branch () {
+
+    ensure_tool git
+    local root="${1:-}" b=""
+
+    if [[ -e "${root}/.git" ]]; then
+
+        b="$(cd -- "${root}" && git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+        b="${b#origin/}"
+
+        [[ -n "${b}" ]] || b="$(cd -- "${root}" && git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        [[ "${b}" == "HEAD" ]] && b=""
+
+    fi
+
+    [[ -n "${b}" ]] || b="main"
+    printf '%s\n' "${b}"
+
 }
 forge_placeholders () {
 
-    source <(parse "$@" -- :root :name alias user repo branch description discord_url docs_url site_url host)
-
-    [[ -n "${repo}"   ]] || repo="${name}"
-    [[ -n "${alias}"  ]] || alias="${name}"
-    [[ -n "${host}"   ]] || host="https://github.com"
-    [[ "${host}" == *"://"* ]] || host="https://${host}"
-    [[ -n "${branch}" ]] || branch="$(git_default_branch "${root}")"
-
-    cd -- "${root}" || die "set_placeholders: cannot cd to ${root}"
+    source <(parse "$@" -- :root :name user repo branch description discord_url docs_url site_url host)
 
     local -A ph_map=()
+
+    [[ -n "${repo}"   ]] || repo="${name}"
+    [[ -n "${branch}" ]] || branch="$(forge_default_branch "${root}")"
+    [[ -n "${host}"   ]] || host="https://github.com"
+    [[ "${host}" == *"://"* ]] || host="https://${host}"
 
     append () {
 
@@ -6046,7 +6066,6 @@ forge_placeholders () {
 
     append "year"         "$(date +%Y)"
     append "name"         "${name}"
-    append "alias"        "${alias}"
     append "user"         "${user}"
     append "repo"         "${repo}"
     append "branch"       "${branch}"
@@ -6111,7 +6130,7 @@ forge_init_git () {
 
     source <(parse "$@" -- :root :name repo branch)
 
-    cd -- "${root}" || die "set_git: cannot cd to ${root}"
+    cd -- "${root}" || die "forge_init_git: cannot cd to ${root}"
     cmd_init "${repo:-${name}}" "${kwargs[@]}"
 
 }
@@ -6126,14 +6145,16 @@ forge_resolve_name () {
     name="${name,,}"
 
     name="${name//-app/-pure}"
+    name="${name//-bin/-pure}"
     name="${name//-project/-pure}"
-    name="${name//-framework/-web}"
+    name="${name//-empty/-pure}"
     name="${name//-package/-lib}"
     name="${name//-crate/-lib}"
     name="${name//-workspace/-ws}"
     name="${name//-monorepo/-ws}"
+    name="${name//-framework/-web}"
 
-    printf '%s\n' "${name}"
+    printf '%s\n' "${name#-}"
 
 }
 forge_display_name () {
@@ -6149,30 +6170,52 @@ forge_resolve_dest () {
 
     local dir="${1:-}" name="${2:-}"
 
-    dir="${dir:-${WORKSPACE_DIR:-}}"
+    if [[ -n "${dir}" ]]; then
+
+        dir="${dir/#\~/${HOME}}"
+        dir="${dir%/}"
+        [[ "${dir##*/}" == "${name}" ]] || dir="${dir}/${name}"
+
+        printf '%s\n' "${dir}"
+        return 0
+
+    fi
+
+    dir="${WORKSPACE_DIR:-}"
     dir="${dir/#\~/${HOME}}"
     dir="${dir%/}"
 
-    ensure_dir "${dir}"
-    dir="${dir}/${name}"
-
-    printf '%s\n' "${dir}"
+    printf '%s\n' "${dir}/${name}"
 
 }
 forge_resolve_path () {
 
-    local root="${1:-}" name="${2:-}" base="" try=""
+    local root="${1:-}" name="${2:-}" type="${3:-}" base="" try=""
 
-    for base in "pure" "web" "lib" "ws"; do
+    if [[ -n "${type}" ]]; then
 
-        try="${base}/${name}"
-        [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
-        [[ "${name}" == *-"${base}" ]] || continue
+        type="$(forge_resolve_name "-${type}")"
 
-        try="${base}/${name%-${base}}"
+        try="${type}/${name%-${type}}"
         [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
 
-    done
+        try="${type}/${name%%-*}"
+        [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+
+    else
+
+        for base in "pure" "web" "lib" "ws"; do
+
+            try="${base}/${name}"
+            [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+            [[ "${name}" == *-"${base}" ]] || continue
+
+            try="${base}/${name%-${base}}"
+            [[ -d "${root}/${try}" ]] && { printf '%s\n' "${root}/${try}" ; return 0 ; }
+
+        done
+
+    fi
 
     printf '%s\n' ""
     return 1
@@ -6288,8 +6331,10 @@ forge_copy_config () {
 
     source <(parse "$@" -- \
         :name :config_dir :dest_dir \
-        env:bool=true docs:bool=true license:bool=true pretty:bool=true safety:bool=true \
-        format:bool=true lint:bool=true audit:bool=true coverage:bool=true github:bool=true docker:bool=false \
+        env:bool=true docs:bool=true license:bool=true \
+        github:bool=true docker:bool=false \
+        pretty:bool=true safety:bool=true format:bool=true \
+        lint:bool=true audit:bool=true coverage:bool=true \
     )
 
     [[ -e "${config_dir}" ]] || die "cannot resolve config src: ${config_dir}"
@@ -6324,51 +6369,56 @@ cmd_forge_help () {
 
     printf '    %s\n' \
         "" \
-        "new                        * Create a new project from template" \
-        "new-project                * Create a new pure project from template" \
+        "new                        * Create a new project from template (default: empty)" \
         "new-lib                    * Create a new library project from template" \
         "new-ws                     * Create a new workspace project from template" \
+        "new-web                    * Create a new web project from template" \
         ''
 
 }
+
 cmd_new () {
 
-    source <(parse "$@" -- :template name dest placeholders:bool=true git:bool=true)
-
-    local root="$(forge_template_dir)"
-    local conf="${root}/conf"
+    source <(parse "$@" -- :template dest name type config:bool git:bool=true placeholders:bool=true)
 
     template="$(forge_resolve_name "${template}")"
-    name="${name:-"$(forge_display_name "${template}")"}"
+
+    local root="$(forge_template_dir)"
+    local src="$(forge_resolve_path "${root}" "${template}" "${type}")"
+    local conf="${root}/conf"
+
+    dest="${dest%/}"
+    [[ -n "${dest}" && "${dest}" != */* ]] && { name="${name:-${dest}}"; dest=""; }
+
+    local base="${dest##*/}"
+    name="${name:-${base:-"$(forge_display_name "${template}")"}}"
     dest="$(forge_resolve_dest "${dest}" "${name}")"
 
-    local src="$(forge_resolve_path "${root}" "${template}")"
-
     forge_copy_template "${src}" "${dest}"
-    forge_copy_config "${template}" "${conf}" "${dest}" "${kwargs[@]}"
 
-    (( placeholders )) && forge_placeholders "${dest}" "${name}" "${name}" "${kwargs[@]}"
-    (( git ))          && forge_init_git "${dest}" "${name}" "${name}" "${kwargs[@]}"
+    if (( config )) || [[ "${src}" != */pure/* ]]; then
+        forge_copy_config "${template}" "${conf}" "${dest}" "${kwargs[@]}"
+    fi
+
+    (( git ))          && forge_init_git     "${dest}" "${name}" "${kwargs[@]}"
+    (( placeholders )) && forge_placeholders "${dest}" "${name}" "${kwargs[@]}"
 
     success "OK: ${name} was successfully set up at ${dest}"
 
 }
-cmd_new_project () {
-
-    source <(parse "$@" -- :template)
-    cmd_new "${template}-pure" "${kwargs[@]}"
-
-}
 cmd_new_lib () {
 
-    source <(parse "$@" -- :template)
-    cmd_new "${template}-lib" "${kwargs[@]}"
+    cmd_new "$@" --type lib
 
 }
 cmd_new_ws () {
 
-    source <(parse "$@" -- :template)
-    cmd_new "${template}-ws" "${kwargs[@]}"
+    cmd_new "$@" --type ws
+
+}
+cmd_new_web () {
+
+    cmd_new "$@" --type web
 
 }
 
@@ -8163,7 +8213,7 @@ cmd_changelog () {
 cmd_init () {
 
     ensure_tool git
-    source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool=true)
+    source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool)
 
     local path="" url="" parsed=0 explicit=0 before_url="" after_url="" cur=""
     auth="${auth:-${GIT_AUTH:-ssh}}"
@@ -8188,7 +8238,7 @@ cmd_init () {
     fi
 
     before_url="$(git_remote_url "${remote}")"
-    (( create )) && (( explicit == 0 )) && cmd_new_repo --repo "${repo}" "${kwargs[@]}"
+    (( create )) && (( explicit == 0 )) && cmd_new_repo "${repo}" "${kwargs[@]}"
     after_url="$(git_remote_url "${remote}")"
 
     if (( explicit == 0 )) && (( create )) && [[ -n "${after_url}" && "${after_url}" != "${before_url}" ]]; then
@@ -9011,12 +9061,12 @@ cmd_clear_secrets () {
 
 cmd_new_repo () {
 
-    source <(parse "$@" -- sync:bool=true)
-    gh_new_repo "${kwargs[@]}"
+    source <(parse "$@" -- :name sync:bool=true)
+    gh_new_repo "${name}" "${kwargs[@]}"
 
     (( sync )) && {
-        cmd_sync_vars "${kwargs[@]}"
-        cmd_sync_secrets "${kwargs[@]}"
+        cmd_sync_vars    --repo "${name}" "${kwargs[@]}"
+        cmd_sync_secrets --repo "${name}" "${kwargs[@]}"
     }
 
 }
@@ -10576,18 +10626,18 @@ cmd_list () {
     run cargo --list "$@"
 
 }
-cmd_install () {
+# cmd_install () {
 
-    source <(parse "$@" -- :name:list)
-    run_cargo install "${name[@]}" "${kwargs[@]}"
+#     source <(parse "$@" -- :name:list)
+#     run_cargo install "${name[@]}" "${kwargs[@]}"
 
-}
-cmd_uninstall () {
+# }
+# cmd_uninstall () {
 
-    source <(parse "$@" -- :name:list)
-    run_cargo uninstall "${name[@]}" "${kwargs[@]}"
+#     source <(parse "$@" -- :name:list)
+#     run_cargo uninstall "${name[@]}" "${kwargs[@]}"
 
-}
+# }
 cmd_install_update () {
 
     source <(parse "$@" -- :name:list="-a")
@@ -10662,148 +10712,148 @@ cmd_search () {
 
 }
 
-cmd_new () {
+# cmd_new () {
 
-    ensure perl
-    source <(parse "$@" -- :name:str dir:str="crates" kind:str="--lib" publish:bool=true workspace:bool=true )
+#     ensure perl
+#     source <(parse "$@" -- :name:str dir:str="crates" kind:str="--lib" publish:bool=true workspace:bool=true )
 
-    local path="${dir}/${name}"
+#     local path="${dir}/${name}"
 
-    [[ -e "${path}" ]] && die "Crate already exists: ${path}" 2
-    [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "Invalid crate name: ${name}" 2
+#     [[ -e "${path}" ]] && die "Crate already exists: ${path}" 2
+#     [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "Invalid crate name: ${name}" 2
 
-    mkdir -p -- "${dir}" 2>/dev/null || true
-    run_cargo new --vcs none "${kind}" "${kwargs[@]}" "${path}"
+#     mkdir -p -- "${dir}" 2>/dev/null || true
+#     run_cargo new --vcs none "${kind}" "${kwargs[@]}" "${path}"
 
-    local crate_toml="${path}/Cargo.toml"
-    [[ -f "${crate_toml}" ]] || die "Cargo.toml not found: ${crate_toml}" 2
+#     local crate_toml="${path}/Cargo.toml"
+#     [[ -f "${crate_toml}" ]] || die "Cargo.toml not found: ${crate_toml}" 2
 
-    if (( publish == 0 )); then
+#     if (( publish == 0 )); then
 
-        perl -i -ne '
-            our $nl;
-            $nl //= (/\r\n$/ ? "\r\n" : "\n");
+#         perl -i -ne '
+#             our $nl;
+#             $nl //= (/\r\n$/ ? "\r\n" : "\n");
 
-            our $in_pkg;
-            our $inserted;
+#             our $in_pkg;
+#             our $inserted;
 
-            if (/^\[package\]\s*\r?$/) {
-                $in_pkg = 1;
-                $inserted = 0;
-                print;
-                next;
-            }
-            if ($in_pkg) {
+#             if (/^\[package\]\s*\r?$/) {
+#                 $in_pkg = 1;
+#                 $inserted = 0;
+#                 print;
+#                 next;
+#             }
+#             if ($in_pkg) {
 
-                if (/^\[[^\]]+\]\s*\r?$/) {
-                    if (!$inserted) { print "publish = false$nl"; $inserted = 1; }
-                    $in_pkg = 0;
-                    print;
-                    next;
-                }
-                if (/^[ \t]*publish\s*=/) {
-                    next;
-                }
-                if (!$inserted && /^[ \t]*name\s*=/) {
-                    print;
-                    print "publish = false$nl";
-                    $inserted = 1;
-                    next;
-                }
+#                 if (/^\[[^\]]+\]\s*\r?$/) {
+#                     if (!$inserted) { print "publish = false$nl"; $inserted = 1; }
+#                     $in_pkg = 0;
+#                     print;
+#                     next;
+#                 }
+#                 if (/^[ \t]*publish\s*=/) {
+#                     next;
+#                 }
+#                 if (!$inserted && /^[ \t]*name\s*=/) {
+#                     print;
+#                     print "publish = false$nl";
+#                     $inserted = 1;
+#                     next;
+#                 }
 
-                print;
-                next;
-            }
+#                 print;
+#                 next;
+#             }
 
-            print;
+#             print;
 
-            END {
-                if ($in_pkg && !$inserted) {
-                    print "publish = false$nl";
-                }
-            }
-        ' "${crate_toml}" || die "Failed to set publish=false in ${crate_toml}" 2
+#             END {
+#                 if ($in_pkg && !$inserted) {
+#                     print "publish = false$nl";
+#                 }
+#             }
+#         ' "${crate_toml}" || die "Failed to set publish=false in ${crate_toml}" 2
 
-    else
+#     else
 
-        perl -i -ne '
-            our $nl;
-            $nl //= (/\r\n$/ ? "\r\n" : "\n");
+#         perl -i -ne '
+#             our $nl;
+#             $nl //= (/\r\n$/ ? "\r\n" : "\n");
 
-            our $in_pkg;
-            our $has_categories;
-            our $inserted;
+#             our $in_pkg;
+#             our $has_categories;
+#             our $inserted;
 
-            if (/^\[package\]\s*\r?$/) {
-                $in_pkg = 1;
-                $has_categories = 0;
-                $inserted = 0;
-                print;
-                next;
-            }
-            if ($in_pkg) {
+#             if (/^\[package\]\s*\r?$/) {
+#                 $in_pkg = 1;
+#                 $has_categories = 0;
+#                 $inserted = 0;
+#                 print;
+#                 next;
+#             }
+#             if ($in_pkg) {
 
-                if (/^[ \t]*categories\s*=/) {
-                    $has_categories = 1;
-                    print;
-                    next;
-                }
-                if (/^\[[^\]]+\]\s*\r?$/) {
-                    if (!$has_categories && !$inserted) {
-                        print "categories = [\"development-tools\"]$nl";
-                        $inserted = 1;
-                    }
-                    $in_pkg = 0;
-                    print;
-                    next;
-                }
-                if (!$has_categories && !$inserted && /^[ \t]*name\s*=/) {
-                    print;
-                    print "categories = [\"development-tools\"]$nl";
-                    $inserted = 1;
-                    next;
-                }
+#                 if (/^[ \t]*categories\s*=/) {
+#                     $has_categories = 1;
+#                     print;
+#                     next;
+#                 }
+#                 if (/^\[[^\]]+\]\s*\r?$/) {
+#                     if (!$has_categories && !$inserted) {
+#                         print "categories = [\"development-tools\"]$nl";
+#                         $inserted = 1;
+#                     }
+#                     $in_pkg = 0;
+#                     print;
+#                     next;
+#                 }
+#                 if (!$has_categories && !$inserted && /^[ \t]*name\s*=/) {
+#                     print;
+#                     print "categories = [\"development-tools\"]$nl";
+#                     $inserted = 1;
+#                     next;
+#                 }
 
-                print;
-                next;
+#                 print;
+#                 next;
 
-            }
+#             }
 
-            print;
+#             print;
 
-            END {
-                if ($in_pkg && !$has_categories && !$inserted) {
-                    print "categories = [\"development-tools\"]$nl";
-                }
-            }
-        ' "${crate_toml}" || die "Failed to set default categories in ${crate_toml}" 2
+#             END {
+#                 if ($in_pkg && !$has_categories && !$inserted) {
+#                     print "categories = [\"development-tools\"]$nl";
+#                 }
+#             }
+#         ' "${crate_toml}" || die "Failed to set default categories in ${crate_toml}" 2
 
-    fi
+#     fi
 
-    [[ ${workspace} -eq 1 ]] || return 0
-    [[ -f Cargo.toml ]] || return 0
+#     [[ ${workspace} -eq 1 ]] || return 0
+#     [[ -f Cargo.toml ]] || return 0
 
-    grep -qF "\"${dir}/${name}\"" Cargo.toml 2>/dev/null && return 0
+#     grep -qF "\"${dir}/${name}\"" Cargo.toml 2>/dev/null && return 0
 
-    MEMBER="${dir}/${name}" perl -0777 -i -pe '
-        my $m = $ENV{MEMBER};
-        my $ws = qr/\[workspace\]/s;
+#     MEMBER="${dir}/${name}" perl -0777 -i -pe '
+#         my $m = $ENV{MEMBER};
+#         my $ws = qr/\[workspace\]/s;
 
-        if ($_ !~ $ws) { next; }
+#         if ($_ !~ $ws) { next; }
 
-        if ($_ =~ /members\s*=\s*\[(.*?)\]/s) {
-            my $block = $1;
+#         if ($_ =~ /members\s*=\s*\[(.*?)\]/s) {
+#             my $block = $1;
 
-            if ($block !~ /\Q$m\E/s) {
-                s/(members\s*=\s*\[)(.*?)(\])/$1.$2."\n    \"$m\",\n".$3/se;
-            }
-        }
-        else {
-            s/(\[workspace\]\s*)/$1."members = [\n    \"$m\",\n]\n"/se;
-        }
-    ' Cargo.toml
+#             if ($block !~ /\Q$m\E/s) {
+#                 s/(members\s*=\s*\[)(.*?)(\])/$1.$2."\n    \"$m\",\n".$3/se;
+#             }
+#         }
+#         else {
+#             s/(\[workspace\]\s*)/$1."members = [\n    \"$m\",\n]\n"/se;
+#         }
+#     ' Cargo.toml
 
-}
+# }
 cmd_build () {
 
     source <(parse "$@" -- package:list)
@@ -13546,4 +13596,4 @@ I:óÈB)elZqš|»Oı„QÀ…öAZyñL«ƒ9[¨øle^)‚+!YUZ¢`^Ñú×>h\}GØñZdÈğb.Bò$há¯’FV3p
 ƒ“qù{ãIÎ"û…İƒı}¥H%›ÓÚ_ˆÕ°ö¾R@l×+…ˆ¥²Jz¹D›¸¹xól~Ö!¤jÈ@„ERÄ•Ù”¸ö"#íD	Hb kÓó™nr­	Ï­öë†ûà OsP«ôšÆw/X	Á…X—Ç_ˆï…§Á59±·.¸o¿şmó¿SX|8„ŠŠfŠqƒ‡ÎË&‡hàG)|÷y¾öhùÏsÙùŸï‡}ÕıÿV‹öÿ;ÕùÏ¸Âöo„šg¹ÛQşÿíqıï0Ñÿ·Û´şou+ş¿'çt•€,¯c£+CùÚW@IùE
 ‰9`
 Êóù3ë’pë”2ù–²ğlËK(aÇ,áÇrÔ„!KÀ˜#Ë (â†è%@Nœá· 8+CSVÃôáL/´¿¬+x¼ÙNzÄ²Ù¬%g	³ïaÖ4„+ùŸd‰£±¥9÷ôÆ&âZ54 ›Ê¼»ó¡i†É­¸å¹yYÑú÷lÉıÄÛ´ÃZZ„F|S„ú¬„Ó»U/¤‹V›ÙcFö+$ è‹a&â—ûÛ'ŸøÌ¦\ĞÜÛ¥Ë;¤Á<¼CïèdìAtRµšÖÅÇ±Å±ù°mìFNkq?¿Jø"ãk¤±_\')¼¸VŠğe)ÖLº şÖÎ'Íÿ%üé¹[ÚüÿÛãöÿ›G)ÿïrûÿ•ıÇ¸;:I3ÄC[¸Å¯J|oñïpş½rÖ¿·Îû÷
-˜ÿ^÷ß+bÿ{ëü¯@ Ø+’ öŠD€½B`¯@Ø+öÖÄ€½R9€¶ìÄ¾Õyr€B é!nšëk¡f¦SD=yÍZ€§–;Ö¬50]këòÛ×bI>¤Wu4ºD*âD'äÏ&„SpŠøÕÇÄe×ø)æ¨n{‹Ş$²áËıéé«ûÙoı§_<{÷.Ø<fYÜp“ß·>P~ù&©Ğ’À"}l$ŠğîÓHÛåé«àYIDw2iì¿‚àˆ)ãÈ)Aÿ^WK\ı¾-Å}“Ë8{}~Y¿~}]œ¿¾<¾}{sFpÈı]`E/ÊV.Y}4'&ˆMÙŠ~÷n|{1İ«ÿjªß†ÏŸ4Çu$À3¨q’9ø¾¸¦N†|ûâOZ£GÛùYJ¿a’Ã?Z/ÿL›ì7Lløü%9GÖ˜hœ¤ib¿M×4††¹.WÖ;Ó.MéÚ¦ƒ•`”¥Í@Á2ñêAPF-N59´Tœ¬ü:@’4 ’eÊR"b46â*NÛâ(§—ƒÑÙÍÍÕÍèüòçãó‹ÓÑÏç7·o/Îÿu|{~u	àÁíñåÉÙèòøÍ™‚pÃ(@„‡şñüâ!£³œnğô%øtIä³O-²H!ñûâüT)ªêrX! ı8îC H7ù•ÿŒ}¸¯åŠå?ú…^èëÛØ zDşköš½ÄşK¯G÷?›½êüçN\°[m$*|²7û.2úñ5Oák×j³M±¿ÃÍÿoäâ‚¼ƒ5àïø}í»xêC€Q3ƒµê«É0ì~İš M7`¿øx63ÎİÇ	^£ì£Á44¶í>\ÓEM<hË Vû°rgáÀ#ã´‚jFÁ‰ˆÂñLÇ÷¯™/£Qõ Â•q!^•ù1Y^õé„F­†Û0>ÌÑßÖ"1®_¿{BïU=yQÂß§z2$ÈjñæG¦&sÑmƒÇ¶Eqäåd™ÏŸ“ñÿÀÆÛùƒ»OÕÿ÷à_³‹ö¿:GÍêş_å*W¹ÊU®r•«\å*W¹ÊU®r•«\å*W¹ÊU®r•«\å*W¹ÊU®r•«\å*W¹ÊU®r•«\¡ûŒtÀ_ H 
+˜ÿ^÷ß+bÿ{ëü¯@ Ø+’ öŠD€½B`¯@Ø+öÖÄ€½R9€¶ìÄ¾Õyr€B é!nšëk¡f¦SD=yÍZ€§–;Ö¬50]këòÛ×bI>¤Wu4ºD*âD'äÏ&„SpŠøÕÇÄe×ø)æ¨n{‹Ş$²áËıéé«ûÙoı§_<{÷.Ø<fYÜp“ß·>P~ù&©Ğ’À"}l$ŠğîÓHÛåé«àYIDw2iì¿‚àˆ)ãÈ)Aÿ^WK\ı¾-Å}“Ë8{}~Y¿~}]œ¿¾<¾}{sFpÈı]`E/ÊV.Y}4'&ˆMÙŠ~÷n|{1İ«ÿjªß†ÏŸ4Çu$À3¨q’9ø¾¸¦N†|ûâOZ£GÛùYJ¿a’Ã?Z/ÿL›ì7Lløü%9GÖ˜hœ¤ib¿M×4††¹.WÖ;Ó.MéÚ¦ƒ•`”¥Í@Á2ñêAPF-N59´Tœ¬ü:@’4 ’eÊR"b46â*NÛâ(§—ƒÑÙÍÍÕÍèüòçãó‹ÓÑÏç7·o/Îÿu|{~u	àÁíñåÉÙèòøÍ™‚pÃ(@„‡şñüâ!£³œnğô%øtIä³O-²H!ñûâüT)ªêrX! ı8îC H7ù•ÿŒ}¸¯åŠå?ú…^èëÛØ zDşköš½ÄşK¯G÷?›½êüçN\°[m$*|²7û.2úñ5Oák×j³M±¿ÃÍÿoäâ‚¼ƒ5àïø}í»xêC€Q3ƒµê«É0ì~İš M7`¿øx63ÎİÇ	^£ì£Á44¶í>\ÓEM<hË Vû°rgáÀ#ã´‚jFÁ‰ˆÂñLÇ÷¯™/£Qõ Â•q!^•ù1Y^õé„F­†Û0>ÌÑßÖ"1®_¿{BïU=yQÂß§z2$ÈjñæG¦&sÑmƒÇ¶Eqäåd™ÏŸ“ñÿÀÆÛùƒ»OÔÿ÷`–èöPÿß9ìU÷ÿwâ2íoi¾6gÖWÚÿáíßå÷?Û‡UûïÂeÚŸ»Û§±ùøïvÚUûW®r•«\å*W¹ÊU®r•«\å*W¹ÊU®r•«\å*W¹ÊU®r•«\å*W¹ÊU®r•«ÜÇÜÿ£8³ H 

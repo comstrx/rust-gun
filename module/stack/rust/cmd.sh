@@ -74,18 +74,18 @@ cmd_list () {
     run cargo --list "$@"
 
 }
-cmd_install () {
+# cmd_install () {
 
-    source <(parse "$@" -- :name:list)
-    run_cargo install "${name[@]}" "${kwargs[@]}"
+#     source <(parse "$@" -- :name:list)
+#     run_cargo install "${name[@]}" "${kwargs[@]}"
 
-}
-cmd_uninstall () {
+# }
+# cmd_uninstall () {
 
-    source <(parse "$@" -- :name:list)
-    run_cargo uninstall "${name[@]}" "${kwargs[@]}"
+#     source <(parse "$@" -- :name:list)
+#     run_cargo uninstall "${name[@]}" "${kwargs[@]}"
 
-}
+# }
 cmd_install_update () {
 
     source <(parse "$@" -- :name:list="-a")
@@ -160,148 +160,148 @@ cmd_search () {
 
 }
 
-cmd_new () {
+# cmd_new () {
 
-    ensure perl
-    source <(parse "$@" -- :name:str dir:str="crates" kind:str="--lib" publish:bool=true workspace:bool=true )
+#     ensure perl
+#     source <(parse "$@" -- :name:str dir:str="crates" kind:str="--lib" publish:bool=true workspace:bool=true )
 
-    local path="${dir}/${name}"
+#     local path="${dir}/${name}"
 
-    [[ -e "${path}" ]] && die "Crate already exists: ${path}" 2
-    [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "Invalid crate name: ${name}" 2
+#     [[ -e "${path}" ]] && die "Crate already exists: ${path}" 2
+#     [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "Invalid crate name: ${name}" 2
 
-    mkdir -p -- "${dir}" 2>/dev/null || true
-    run_cargo new --vcs none "${kind}" "${kwargs[@]}" "${path}"
+#     mkdir -p -- "${dir}" 2>/dev/null || true
+#     run_cargo new --vcs none "${kind}" "${kwargs[@]}" "${path}"
 
-    local crate_toml="${path}/Cargo.toml"
-    [[ -f "${crate_toml}" ]] || die "Cargo.toml not found: ${crate_toml}" 2
+#     local crate_toml="${path}/Cargo.toml"
+#     [[ -f "${crate_toml}" ]] || die "Cargo.toml not found: ${crate_toml}" 2
 
-    if (( publish == 0 )); then
+#     if (( publish == 0 )); then
 
-        perl -i -ne '
-            our $nl;
-            $nl //= (/\r\n$/ ? "\r\n" : "\n");
+#         perl -i -ne '
+#             our $nl;
+#             $nl //= (/\r\n$/ ? "\r\n" : "\n");
 
-            our $in_pkg;
-            our $inserted;
+#             our $in_pkg;
+#             our $inserted;
 
-            if (/^\[package\]\s*\r?$/) {
-                $in_pkg = 1;
-                $inserted = 0;
-                print;
-                next;
-            }
-            if ($in_pkg) {
+#             if (/^\[package\]\s*\r?$/) {
+#                 $in_pkg = 1;
+#                 $inserted = 0;
+#                 print;
+#                 next;
+#             }
+#             if ($in_pkg) {
 
-                if (/^\[[^\]]+\]\s*\r?$/) {
-                    if (!$inserted) { print "publish = false$nl"; $inserted = 1; }
-                    $in_pkg = 0;
-                    print;
-                    next;
-                }
-                if (/^[ \t]*publish\s*=/) {
-                    next;
-                }
-                if (!$inserted && /^[ \t]*name\s*=/) {
-                    print;
-                    print "publish = false$nl";
-                    $inserted = 1;
-                    next;
-                }
+#                 if (/^\[[^\]]+\]\s*\r?$/) {
+#                     if (!$inserted) { print "publish = false$nl"; $inserted = 1; }
+#                     $in_pkg = 0;
+#                     print;
+#                     next;
+#                 }
+#                 if (/^[ \t]*publish\s*=/) {
+#                     next;
+#                 }
+#                 if (!$inserted && /^[ \t]*name\s*=/) {
+#                     print;
+#                     print "publish = false$nl";
+#                     $inserted = 1;
+#                     next;
+#                 }
 
-                print;
-                next;
-            }
+#                 print;
+#                 next;
+#             }
 
-            print;
+#             print;
 
-            END {
-                if ($in_pkg && !$inserted) {
-                    print "publish = false$nl";
-                }
-            }
-        ' "${crate_toml}" || die "Failed to set publish=false in ${crate_toml}" 2
+#             END {
+#                 if ($in_pkg && !$inserted) {
+#                     print "publish = false$nl";
+#                 }
+#             }
+#         ' "${crate_toml}" || die "Failed to set publish=false in ${crate_toml}" 2
 
-    else
+#     else
 
-        perl -i -ne '
-            our $nl;
-            $nl //= (/\r\n$/ ? "\r\n" : "\n");
+#         perl -i -ne '
+#             our $nl;
+#             $nl //= (/\r\n$/ ? "\r\n" : "\n");
 
-            our $in_pkg;
-            our $has_categories;
-            our $inserted;
+#             our $in_pkg;
+#             our $has_categories;
+#             our $inserted;
 
-            if (/^\[package\]\s*\r?$/) {
-                $in_pkg = 1;
-                $has_categories = 0;
-                $inserted = 0;
-                print;
-                next;
-            }
-            if ($in_pkg) {
+#             if (/^\[package\]\s*\r?$/) {
+#                 $in_pkg = 1;
+#                 $has_categories = 0;
+#                 $inserted = 0;
+#                 print;
+#                 next;
+#             }
+#             if ($in_pkg) {
 
-                if (/^[ \t]*categories\s*=/) {
-                    $has_categories = 1;
-                    print;
-                    next;
-                }
-                if (/^\[[^\]]+\]\s*\r?$/) {
-                    if (!$has_categories && !$inserted) {
-                        print "categories = [\"development-tools\"]$nl";
-                        $inserted = 1;
-                    }
-                    $in_pkg = 0;
-                    print;
-                    next;
-                }
-                if (!$has_categories && !$inserted && /^[ \t]*name\s*=/) {
-                    print;
-                    print "categories = [\"development-tools\"]$nl";
-                    $inserted = 1;
-                    next;
-                }
+#                 if (/^[ \t]*categories\s*=/) {
+#                     $has_categories = 1;
+#                     print;
+#                     next;
+#                 }
+#                 if (/^\[[^\]]+\]\s*\r?$/) {
+#                     if (!$has_categories && !$inserted) {
+#                         print "categories = [\"development-tools\"]$nl";
+#                         $inserted = 1;
+#                     }
+#                     $in_pkg = 0;
+#                     print;
+#                     next;
+#                 }
+#                 if (!$has_categories && !$inserted && /^[ \t]*name\s*=/) {
+#                     print;
+#                     print "categories = [\"development-tools\"]$nl";
+#                     $inserted = 1;
+#                     next;
+#                 }
 
-                print;
-                next;
+#                 print;
+#                 next;
 
-            }
+#             }
 
-            print;
+#             print;
 
-            END {
-                if ($in_pkg && !$has_categories && !$inserted) {
-                    print "categories = [\"development-tools\"]$nl";
-                }
-            }
-        ' "${crate_toml}" || die "Failed to set default categories in ${crate_toml}" 2
+#             END {
+#                 if ($in_pkg && !$has_categories && !$inserted) {
+#                     print "categories = [\"development-tools\"]$nl";
+#                 }
+#             }
+#         ' "${crate_toml}" || die "Failed to set default categories in ${crate_toml}" 2
 
-    fi
+#     fi
 
-    [[ ${workspace} -eq 1 ]] || return 0
-    [[ -f Cargo.toml ]] || return 0
+#     [[ ${workspace} -eq 1 ]] || return 0
+#     [[ -f Cargo.toml ]] || return 0
 
-    grep -qF "\"${dir}/${name}\"" Cargo.toml 2>/dev/null && return 0
+#     grep -qF "\"${dir}/${name}\"" Cargo.toml 2>/dev/null && return 0
 
-    MEMBER="${dir}/${name}" perl -0777 -i -pe '
-        my $m = $ENV{MEMBER};
-        my $ws = qr/\[workspace\]/s;
+#     MEMBER="${dir}/${name}" perl -0777 -i -pe '
+#         my $m = $ENV{MEMBER};
+#         my $ws = qr/\[workspace\]/s;
 
-        if ($_ !~ $ws) { next; }
+#         if ($_ !~ $ws) { next; }
 
-        if ($_ =~ /members\s*=\s*\[(.*?)\]/s) {
-            my $block = $1;
+#         if ($_ =~ /members\s*=\s*\[(.*?)\]/s) {
+#             my $block = $1;
 
-            if ($block !~ /\Q$m\E/s) {
-                s/(members\s*=\s*\[)(.*?)(\])/$1.$2."\n    \"$m\",\n".$3/se;
-            }
-        }
-        else {
-            s/(\[workspace\]\s*)/$1."members = [\n    \"$m\",\n]\n"/se;
-        }
-    ' Cargo.toml
+#             if ($block !~ /\Q$m\E/s) {
+#                 s/(members\s*=\s*\[)(.*?)(\])/$1.$2."\n    \"$m\",\n".$3/se;
+#             }
+#         }
+#         else {
+#             s/(\[workspace\]\s*)/$1."members = [\n    \"$m\",\n]\n"/se;
+#         }
+#     ' Cargo.toml
 
-}
+# }
 cmd_build () {
 
     source <(parse "$@" -- package:list)
