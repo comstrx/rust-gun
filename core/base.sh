@@ -344,12 +344,12 @@ cd_root () {
         fi
 
         [[ "${dir}" == "/" ]] && break
+
         dir="$(dirname -- "${dir}")"
         up=$(( up + 1 ))
 
     done
 
-    eprint "cd_root: cannot detect root"
     return 2
 
 }

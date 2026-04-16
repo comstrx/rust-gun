@@ -1,8 +1,8 @@
 
 parse_require_bash () {
 
-    [[ -n "${BASH_VERSINFO[0]-}" ]] || die "parse: bash required" 2
-    (( ${BASH_VERSINFO[0]:-0} >= 5 )) || die "parse: requires bash >= 5" 2
+    [[ -n "${BASH_VERSINFO[0]-}" ]] || die "parse: bash required"
+    (( ${BASH_VERSINFO[0]:-0} >= 5 )) || die "parse: requires bash >= 5"
     return 0
 
 }
@@ -14,8 +14,8 @@ parse_norm_key () {
     k="${k#-}"
     k="${k//-/_}"
 
-    [[ -n "${k}" ]] || die "parse: empty key" 2
-    [[ "${k}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid key '${k}'" 2
+    [[ -n "${k}" ]] || die "parse: empty key"
+    [[ "${k}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid key '${k}'"
 
     printf '%s' "${k}"
     return 0
@@ -39,9 +39,7 @@ parse_try_norm_key () {
 parse_is_schema_token () {
 
     local s="${1-}"
-    local re='^:?(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*(\|(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*)*(:(int|float|str|char|bool|list|any))?([=].*)?$'
-
-    [[ "${s}" =~ ${re} ]]
+    [[ "${s}" =~ ^:?(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*(\|(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*)*(:(int|float|str|char|bool|list|any))?([=].*)?$ ]]
 
 }
 parse_is_int () {
@@ -132,7 +130,7 @@ parse_int_norm () {
 
     local v="${1-}" label="${2-int}"
 
-    [[ -n "${v}" ]] || die "parse: '${label}' must be an integer" 2
+    [[ -n "${v}" ]] || die "parse: '${label}' must be an integer"
     parse_is_int "${v}" && { printf '%s' "${v}"; return 0; }
 
     if [[ "${v}" =~ ^([+-]?[0-9]+)[.](0+)$ ]]; then
@@ -140,20 +138,20 @@ parse_int_norm () {
         return 0
     fi
 
-    die "parse: '${label}' must be an integer" 2
+    die "parse: '${label}' must be an integer"
 
 }
 parse_bool_norm () {
 
     local v="${1-}" label="${2-bool}"
 
-    [[ -n "${v}" ]] || die "parse: '${label}' must be 'true' or 'false' (or 1/0)" 2
+    [[ -n "${v}" ]] || die "parse: '${label}' must be 'true' or 'false' (or 1/0)"
     v="${v,,}"
 
     case "${v}" in
         1|true|yes|y|on|t)  printf '1' ;;
         0|false|no|n|off|f) printf '0' ;;
-        *) die "parse: '${label}' must be 'true' or 'false' (or 1/0)" 2 ;;
+        *) die "parse: '${label}' must be 'true' or 'false' (or 1/0)" ;;
     esac
 
     return 0
@@ -209,12 +207,12 @@ parse_args_split () {
         fi
     done
 
-    (( sep >= 0 )) || die "parse: missing '--' separator" 2
+    (( sep >= 0 )) || die "parse: missing '--' separator"
 
     out_argv=( "${all[@]:0:$sep}" )
     out_schema=( "${all[@]:$(( sep + 1 ))}" )
 
-    (( ${#out_schema[@]} )) || die "parse: missing schema" 2
+    (( ${#out_schema[@]} )) || die "parse: missing schema"
 
     return 0
 
@@ -265,9 +263,7 @@ parse_emit_array () {
 }
 parse_is_reserved_key () {
 
-    local k="${1-}"
-
-    case "${k}" in
+    case "${1:-}" in
         ""|kwargs|stype|sreq|sdef|sdef_has|set|alias_to|sdisp|order|pos_order|auto_order|auto_has_opt) return 0 ;;
     esac
 
@@ -302,7 +298,7 @@ parse_args__schema_build () {
 
     for spec in "${__schema[@]}"; do
 
-        parse_is_schema_token "${spec}" || die "parse: bad schema token '${spec}'" 2
+        parse_is_schema_token "${spec}" || die "parse: bad schema token '${spec}'"
 
         raw="${spec}"
         req=0
@@ -329,19 +325,19 @@ parse_args__schema_build () {
 
         name_list=()
         IFS='|' read -r -a name_list <<< "${names}"
-        (( ${#name_list[@]} )) || die "parse: bad schema '${spec}'" 2
+        (( ${#name_list[@]} )) || die "parse: bad schema '${spec}'"
 
         canon="${name_list[0]}"
-        [[ "${canon}" != --no-* && "${canon}" != -no-* ]] || die "parse: schema name '${canon}' is reserved (no- prefix)" 2
+        [[ "${canon}" != --no-* && "${canon}" != -no-* ]] || die "parse: schema name '${canon}' is reserved (no- prefix)"
 
         nk="$(parse_norm_key "${canon}")"
-        [[ "${nk}" != __* ]] || die "parse: key '${canon}' is reserved (internal prefix)" 2
+        [[ "${nk}" != __* ]] || die "parse: key '${canon}' is reserved (internal prefix)"
 
         if [[ "${nk}" == "kwargs" ]]; then
 
-            [[ "${canon}" != --* && "${canon}" != -* ]] || die "parse: kwargs must be positional (no -/-- prefix)" 2
-            (( ${#name_list[@]} == 1 )) || die "parse: kwargs must not have aliases" 2
-            (( def_has )) && die "parse: kwargs does not support default value" 2
+            [[ "${canon}" != --* && "${canon}" != -* ]] || die "parse: kwargs must be positional (no -/-- prefix)"
+            (( ${#name_list[@]} == 1 )) || die "parse: kwargs must not have aliases"
+            (( def_has )) && die "parse: kwargs does not support default value"
 
             __have_kwargs_schema=1
             __kwargs_req="${req}"
@@ -350,7 +346,7 @@ parse_args__schema_build () {
 
         fi
 
-        parse_is_reserved_key "${nk}" && die "parse: key '${canon}' is reserved" 2
+        parse_is_reserved_key "${nk}" && die "parse: key '${canon}' is reserved"
 
         if [[ "${t}" == "__auto__" ]]; then
 
@@ -369,10 +365,10 @@ parse_args__schema_build () {
 
         case "${t}" in
             __auto__|int|float|str|char|bool|list|any) ;;
-            *) die "parse: unknown type '${t}' for '${spec}'" 2 ;;
+            *) die "parse: unknown type '${t}' for '${spec}'" ;;
         esac
 
-        [[ -z "${__stype[${nk}]-}" ]] || die "parse: duplicate name '${nk}'" 2
+        [[ -z "${__stype[${nk}]-}" ]] || die "parse: duplicate name '${nk}'"
 
         __stype["${nk}"]="${t}"
         __sreq["${nk}"]="${req}"
@@ -394,12 +390,12 @@ parse_args__schema_build () {
 
         for nm in "${name_list[@]-}"; do
 
-            [[ "${nm}" != --no-* && "${nm}" != -no-* ]] || die "parse: schema alias '${nm}' is reserved (no- prefix)" 2
+            [[ "${nm}" != --no-* && "${nm}" != -no-* ]] || die "parse: schema alias '${nm}' is reserved (no- prefix)"
 
             ak="$(parse_norm_key "${nm}")"
 
             if [[ -n "${__alias_to[${ak}]-}" ]]; then
-                [[ "${__alias_to[${ak}]}" == "${nk}" ]] || die "parse: duplicate alias '${nm}'" 2
+                [[ "${__alias_to[${ak}]}" == "${nk}" ]] || die "parse: duplicate alias '${nm}'"
                 continue
             fi
 
@@ -517,6 +513,11 @@ parse_args__infer_auto_types () {
     return 0
 
 }
+parse_args__validate_pos_list_last () {
+
+    return 0
+
+}
 parse_args__init_values () {
 
     local -n __order="${1}"
@@ -628,9 +629,9 @@ parse_args__parse_argv () {
 
                 case "${tv}" in
                     int)   arg="$(parse_int_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                    float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" 2 ;;
+                    float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" ;;
                     bool)  arg="$(parse_bool_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                    char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" 2 ;;
+                    char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" ;;
                 esac
 
                 parse_set_scalar "${pn}" "${arg}"
@@ -691,10 +692,10 @@ parse_args__parse_argv () {
                     val="$(parse_int_norm "${val}" "${__sdisp[${k}]}" )"
                     parse_set_scalar "${k}" "${val}"
                 elif [[ "${tv}" == "float" ]]; then
-                    parse_is_float "${val}" || die "parse: '${__sdisp[${k}]}' must be a float number" 2
+                    parse_is_float "${val}" || die "parse: '${__sdisp[${k}]}' must be a float number"
                     parse_set_scalar "${k}" "${val}"
                 elif [[ "${tv}" == "char" ]]; then
-                    [[ "${#val}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character" 2
+                    [[ "${#val}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character"
                     parse_set_scalar "${k}" "${val}"
                 elif [[ "${tv}" == "list" ]]; then
                     parse_array_append "${k}" "${val}"
@@ -810,23 +811,23 @@ parse_args__parse_argv () {
 
                     done
 
-                    (( consumed )) || die "parse: '${arg}' expects a value" 2
+                    (( consumed )) || die "parse: '${arg}' expects a value"
 
                     __set["${k}"]=1
                     continue
 
                 fi
 
-                (( i < ${#__argv[@]} )) || die "parse: '${arg}' expects a value" 2
+                (( i < ${#__argv[@]} )) || die "parse: '${arg}' expects a value"
                 next="${__argv[$i]}"
 
                 if [[ "${next}" == "--" ]]; then
-                    die "parse: '${arg}' expects a value" 2
+                    die "parse: '${arg}' expects a value"
                 fi
                 if parse_is_option_like "${next}"; then
 
                     if [[ "${tv}" == "int" || "${tv}" == "float" ]] && parse_is_neg_number_token "${next}"; then :
-                    else die "parse: '${arg}' expects a value (use ${arg}=VALUE for values starting with '-')" 2
+                    else die "parse: '${arg}' expects a value (use ${arg}=VALUE for values starting with '-')"
                     fi
 
                 fi
@@ -834,8 +835,8 @@ parse_args__parse_argv () {
                 i=$(( i + 1 ))
 
                 if [[ "${tv}" == "int" ]]; then next="$(parse_int_norm "${next}" "${__sdisp[${k}]}" )"
-                elif [[ "${tv}" == "float" ]]; then parse_is_float "${next}" || die "parse: '${__sdisp[${k}]}' must be a float number" 2
-                elif [[ "${tv}" == "char" ]]; then [[ "${#next}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character" 2
+                elif [[ "${tv}" == "float" ]]; then parse_is_float "${next}" || die "parse: '${__sdisp[${k}]}' must be a float number"
+                elif [[ "${tv}" == "char" ]]; then [[ "${#next}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character"
                 fi
 
                 if [[ "${tv}" == "list" ]]; then parse_array_append "${k}" "${next}"
@@ -864,9 +865,9 @@ parse_args__parse_argv () {
 
             case "${tv}" in
                 int)   arg="$(parse_int_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" 2 ;;
+                float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" ;;
                 bool)  arg="$(parse_bool_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" 2 ;;
+                char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" ;;
             esac
 
             parse_set_scalar "${pn}" "${arg}"
@@ -908,7 +909,7 @@ parse_args__apply_defaults () {
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             float)
-                parse_is_float "${def_raw}" || die "parse: '${__sdisp[${n}]}' default must be a float number" 2
+                parse_is_float "${def_raw}" || die "parse: '${__sdisp[${n}]}' default must be a float number"
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             bool)
@@ -916,7 +917,7 @@ parse_args__apply_defaults () {
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             char)
-                [[ "${#def_raw}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' default must be exactly 1 character" 2
+                [[ "${#def_raw}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' default must be exactly 1 character"
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             list)
@@ -951,7 +952,7 @@ parse_args__validate_and_normalize () {
 
     if (( __sreq[kwargs] )); then
         local -n __r_kwargs="kwargs"
-        (( ${#__r_kwargs[@]} )) || die "parse: missing required 'kwargs'" 2
+        (( ${#__r_kwargs[@]} )) || die "parse: missing required 'kwargs'"
         __set["kwargs"]=1
     fi
 
@@ -960,8 +961,8 @@ parse_args__validate_and_normalize () {
 
         tv="${__stype[${n}]}"
 
-        if (( __sreq[n] )); then
-            [[ -n "${__set[${n}]-}" ]] || die "parse: missing required '${__sdisp[${n}]}'" 2
+        if (( __sreq[${n}] )); then
+            [[ -n "${__set[${n}]-}" ]] || die "parse: missing required '${__sdisp[${n}]}'"
         fi
 
         [[ -n "${__set[${n}]-}" ]] || continue
@@ -971,28 +972,28 @@ parse_args__validate_and_normalize () {
                 parse_set_scalar "${n}" "$(parse_int_norm "${!n-}" "${__sdisp[${n}]}" )"
             ;;
             float)
-                parse_is_float "${!n-}" || die "parse: '${__sdisp[${n}]}' must be a float number" 2
+                parse_is_float "${!n-}" || die "parse: '${__sdisp[${n}]}' must be a float number"
             ;;
             bool)
                 parse_set_scalar "${n}" "$(parse_bool_norm "${!n-}" "${__sdisp[${n}]}" )"
             ;;
             char)
                 vv="${!n-}"
-                if (( __sreq[n] )); then
-                    [[ "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character" 2
+                if (( __sreq[${n}] )); then
+                    [[ "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character"
                 else
-                    [[ -z "${vv}" || "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character" 2
+                    [[ -z "${vv}" || "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character"
                 fi
             ;;
             str|any)
-                if (( __sreq[n] )); then
-                    [[ -n "${!n-}" ]] || die "parse: '${__sdisp[${n}]}' can't be empty" 2
+                if (( __sreq[${n}] )); then
+                    [[ -n "${!n-}" ]] || die "parse: '${__sdisp[${n}]}' can't be empty"
                 fi
             ;;
             list)
-                if (( __sreq[n] )); then
+                if (( __sreq[${n}] )); then
                     local -n r="${n}"
-                    (( ${#r[@]} )) || die "parse: missing required '${__sdisp[${n}]}'" 2
+                    (( ${#r[@]} )) || die "parse: missing required '${__sdisp[${n}]}'"
                 fi
             ;;
         esac
@@ -1009,6 +1010,7 @@ parse_args__validate_and_normalize () {
     for n in "${__order[@]}"; do
 
         tv="${__stype[${n}]}"
+
         if [[ "${tv}" == "list" ]]; then
             local -n r="${n}"
             parse_emit_array "${emit_scope}" "${n}" "${r[@]}"
@@ -1038,31 +1040,31 @@ parse_usage_extract () {
         case "${in_schema[$i]}" in
             --usage|--help|-h|--h)
                 out_usage="${in_schema[$(( i + 1 ))]-}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 2 ))
                 continue
             ;;
             --usage=*)
                 out_usage="${in_schema[$i]#--usage=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
             --help=*)
                 out_usage="${in_schema[$i]#--help=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
             -h=*)
                 out_usage="${in_schema[$i]#-h=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
             --h=*)
                 out_usage="${in_schema[$i]#--h=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
@@ -1075,13 +1077,14 @@ parse_usage_extract () {
     in_schema=( "${cleaned[@]}" )
 
     if [[ -n "${out_usage}" ]]; then
-        [[ "${out_usage}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid usage fn: ${out_usage}" 2
+        [[ "${out_usage}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid usage fn: ${out_usage}"
     fi
 
 }
 parse_args () {
 
-    local IFS=$' \n\t' scope="assign" usage_fn="" a=""
+    local IFS=$' \n\t'
+    local scope="assign"
 
     if [[ "${1-}" == "--local" ]]; then
         scope="local"
@@ -1091,12 +1094,17 @@ parse_args () {
         shift || true
     fi
 
+    local PARSE_EMIT_MODE=0
+    [[ "${scope}" != "assign" ]] && PARSE_EMIT_MODE=1
+
     parse_require_bash
 
     local -a argv=()
     local -a schema=()
 
     parse_args_split argv schema "$@"
+
+    local usage_fn="" a=""
     parse_usage_extract schema usage_fn
 
     for a in "${argv[@]}"; do
@@ -1143,10 +1151,14 @@ parse_args () {
     local have_kwargs_schema=0
 
     parse_args__schema_build schema stype sreq sdef sdef_has alias_to sdisp order pos_order auto_order auto_has_opt kwargs_req have_kwargs_schema
+
     parse_args__infer_auto_types argv auto_order auto_has_opt alias_to stype
+    parse_args__validate_pos_list_last pos_order stype sdisp
+
     parse_args__init_values order stype
     parse_args__parse_argv argv pos_order stype alias_to sdisp set
     parse_args__apply_defaults order stype sdef sdef_has sdisp set
+
     parse_args__validate_and_normalize "${scope}" order stype sreq sdisp set
 
     return 0
@@ -1158,12 +1170,9 @@ parse () {
 
     die () {
 
-        local msg="${1:-}" code="${2:-2}"
-
-        printf '❌ %s\n' "${msg}" >&2
-        printf 'return %s 2>/dev/null || exit %s\n' "${code}" "${code}"
-
-        exit 0
+        printf '❌ %s\n' "${1:-}" >&2
+        printf 'return %s 2>/dev/null || exit %s\n' "${2:-2}" "${2:-2}"
+        exit 99
 
     }
 
@@ -1174,6 +1183,7 @@ parse () {
     else unset -f die 2>/dev/null || true
     fi
 
+    [[ "${rc}" == 99 ]] && return 0
     return "${rc}"
 
 }

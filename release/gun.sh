@@ -10,9 +10,9 @@ APP_VERSION="0.1.0"
 APP_BASH_VERSION="5.2"
 TEMPLATE_PAYLOAD_KEY="__TEMPLATE_PAYLOAD_KEY__"
 
-WORKSPACE_DIR="${WORKSPACE_DIR:-/var/www}"
+WORKSPACE_DIR="${WORKSPACE_DIR:-/var/www/projects}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/d/Archive}"
-SYNC_DIR="${SYNC_DIR:-/mnt/d}"
+SYNC_DIR="${SYNC_DIR:-/mnt/d/Projects}"
 OUT_DIR="${OUT_DIR:-out}"
 
 GIT_HTTP_USER="${GIT_HTTP_USER:-x-access-token}"
@@ -369,12 +369,12 @@ cd_root () {
         fi
 
         [[ "${dir}" == "/" ]] && break
+
         dir="$(dirname -- "${dir}")"
         up=$(( up + 1 ))
 
     done
 
-    eprint "cd_root: cannot detect root"
     return 2
 
 }
@@ -1213,8 +1213,8 @@ ensure_bin_link () {
 
 parse_require_bash () {
 
-    [[ -n "${BASH_VERSINFO[0]-}" ]] || die "parse: bash required" 2
-    (( ${BASH_VERSINFO[0]:-0} >= 5 )) || die "parse: requires bash >= 5" 2
+    [[ -n "${BASH_VERSINFO[0]-}" ]] || die "parse: bash required"
+    (( ${BASH_VERSINFO[0]:-0} >= 5 )) || die "parse: requires bash >= 5"
     return 0
 
 }
@@ -1226,8 +1226,8 @@ parse_norm_key () {
     k="${k#-}"
     k="${k//-/_}"
 
-    [[ -n "${k}" ]] || die "parse: empty key" 2
-    [[ "${k}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid key '${k}'" 2
+    [[ -n "${k}" ]] || die "parse: empty key"
+    [[ "${k}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid key '${k}'"
 
     printf '%s' "${k}"
     return 0
@@ -1251,9 +1251,7 @@ parse_try_norm_key () {
 parse_is_schema_token () {
 
     local s="${1-}"
-    local re='^:?(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*(\|(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*)*(:(int|float|str|char|bool|list|any))?([=].*)?$'
-
-    [[ "${s}" =~ ${re} ]]
+    [[ "${s}" =~ ^:?(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*(\|(--|-)?[a-zA-Z_][a-zA-Z0-9_-]*)*(:(int|float|str|char|bool|list|any))?([=].*)?$ ]]
 
 }
 parse_is_int () {
@@ -1344,7 +1342,7 @@ parse_int_norm () {
 
     local v="${1-}" label="${2-int}"
 
-    [[ -n "${v}" ]] || die "parse: '${label}' must be an integer" 2
+    [[ -n "${v}" ]] || die "parse: '${label}' must be an integer"
     parse_is_int "${v}" && { printf '%s' "${v}"; return 0; }
 
     if [[ "${v}" =~ ^([+-]?[0-9]+)[.](0+)$ ]]; then
@@ -1352,20 +1350,20 @@ parse_int_norm () {
         return 0
     fi
 
-    die "parse: '${label}' must be an integer" 2
+    die "parse: '${label}' must be an integer"
 
 }
 parse_bool_norm () {
 
     local v="${1-}" label="${2-bool}"
 
-    [[ -n "${v}" ]] || die "parse: '${label}' must be 'true' or 'false' (or 1/0)" 2
+    [[ -n "${v}" ]] || die "parse: '${label}' must be 'true' or 'false' (or 1/0)"
     v="${v,,}"
 
     case "${v}" in
         1|true|yes|y|on|t)  printf '1' ;;
         0|false|no|n|off|f) printf '0' ;;
-        *) die "parse: '${label}' must be 'true' or 'false' (or 1/0)" 2 ;;
+        *) die "parse: '${label}' must be 'true' or 'false' (or 1/0)" ;;
     esac
 
     return 0
@@ -1421,12 +1419,12 @@ parse_args_split () {
         fi
     done
 
-    (( sep >= 0 )) || die "parse: missing '--' separator" 2
+    (( sep >= 0 )) || die "parse: missing '--' separator"
 
     out_argv=( "${all[@]:0:$sep}" )
     out_schema=( "${all[@]:$(( sep + 1 ))}" )
 
-    (( ${#out_schema[@]} )) || die "parse: missing schema" 2
+    (( ${#out_schema[@]} )) || die "parse: missing schema"
 
     return 0
 
@@ -1477,9 +1475,7 @@ parse_emit_array () {
 }
 parse_is_reserved_key () {
 
-    local k="${1-}"
-
-    case "${k}" in
+    case "${1:-}" in
         ""|kwargs|stype|sreq|sdef|sdef_has|set|alias_to|sdisp|order|pos_order|auto_order|auto_has_opt) return 0 ;;
     esac
 
@@ -1514,7 +1510,7 @@ parse_args__schema_build () {
 
     for spec in "${__schema[@]}"; do
 
-        parse_is_schema_token "${spec}" || die "parse: bad schema token '${spec}'" 2
+        parse_is_schema_token "${spec}" || die "parse: bad schema token '${spec}'"
 
         raw="${spec}"
         req=0
@@ -1541,19 +1537,19 @@ parse_args__schema_build () {
 
         name_list=()
         IFS='|' read -r -a name_list <<< "${names}"
-        (( ${#name_list[@]} )) || die "parse: bad schema '${spec}'" 2
+        (( ${#name_list[@]} )) || die "parse: bad schema '${spec}'"
 
         canon="${name_list[0]}"
-        [[ "${canon}" != --no-* && "${canon}" != -no-* ]] || die "parse: schema name '${canon}' is reserved (no- prefix)" 2
+        [[ "${canon}" != --no-* && "${canon}" != -no-* ]] || die "parse: schema name '${canon}' is reserved (no- prefix)"
 
         nk="$(parse_norm_key "${canon}")"
-        [[ "${nk}" != __* ]] || die "parse: key '${canon}' is reserved (internal prefix)" 2
+        [[ "${nk}" != __* ]] || die "parse: key '${canon}' is reserved (internal prefix)"
 
         if [[ "${nk}" == "kwargs" ]]; then
 
-            [[ "${canon}" != --* && "${canon}" != -* ]] || die "parse: kwargs must be positional (no -/-- prefix)" 2
-            (( ${#name_list[@]} == 1 )) || die "parse: kwargs must not have aliases" 2
-            (( def_has )) && die "parse: kwargs does not support default value" 2
+            [[ "${canon}" != --* && "${canon}" != -* ]] || die "parse: kwargs must be positional (no -/-- prefix)"
+            (( ${#name_list[@]} == 1 )) || die "parse: kwargs must not have aliases"
+            (( def_has )) && die "parse: kwargs does not support default value"
 
             __have_kwargs_schema=1
             __kwargs_req="${req}"
@@ -1562,7 +1558,7 @@ parse_args__schema_build () {
 
         fi
 
-        parse_is_reserved_key "${nk}" && die "parse: key '${canon}' is reserved" 2
+        parse_is_reserved_key "${nk}" && die "parse: key '${canon}' is reserved"
 
         if [[ "${t}" == "__auto__" ]]; then
 
@@ -1581,10 +1577,10 @@ parse_args__schema_build () {
 
         case "${t}" in
             __auto__|int|float|str|char|bool|list|any) ;;
-            *) die "parse: unknown type '${t}' for '${spec}'" 2 ;;
+            *) die "parse: unknown type '${t}' for '${spec}'" ;;
         esac
 
-        [[ -z "${__stype[${nk}]-}" ]] || die "parse: duplicate name '${nk}'" 2
+        [[ -z "${__stype[${nk}]-}" ]] || die "parse: duplicate name '${nk}'"
 
         __stype["${nk}"]="${t}"
         __sreq["${nk}"]="${req}"
@@ -1606,12 +1602,12 @@ parse_args__schema_build () {
 
         for nm in "${name_list[@]-}"; do
 
-            [[ "${nm}" != --no-* && "${nm}" != -no-* ]] || die "parse: schema alias '${nm}' is reserved (no- prefix)" 2
+            [[ "${nm}" != --no-* && "${nm}" != -no-* ]] || die "parse: schema alias '${nm}' is reserved (no- prefix)"
 
             ak="$(parse_norm_key "${nm}")"
 
             if [[ -n "${__alias_to[${ak}]-}" ]]; then
-                [[ "${__alias_to[${ak}]}" == "${nk}" ]] || die "parse: duplicate alias '${nm}'" 2
+                [[ "${__alias_to[${ak}]}" == "${nk}" ]] || die "parse: duplicate alias '${nm}'"
                 continue
             fi
 
@@ -1729,6 +1725,11 @@ parse_args__infer_auto_types () {
     return 0
 
 }
+parse_args__validate_pos_list_last () {
+
+    return 0
+
+}
 parse_args__init_values () {
 
     local -n __order="${1}"
@@ -1840,9 +1841,9 @@ parse_args__parse_argv () {
 
                 case "${tv}" in
                     int)   arg="$(parse_int_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                    float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" 2 ;;
+                    float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" ;;
                     bool)  arg="$(parse_bool_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                    char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" 2 ;;
+                    char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" ;;
                 esac
 
                 parse_set_scalar "${pn}" "${arg}"
@@ -1903,10 +1904,10 @@ parse_args__parse_argv () {
                     val="$(parse_int_norm "${val}" "${__sdisp[${k}]}" )"
                     parse_set_scalar "${k}" "${val}"
                 elif [[ "${tv}" == "float" ]]; then
-                    parse_is_float "${val}" || die "parse: '${__sdisp[${k}]}' must be a float number" 2
+                    parse_is_float "${val}" || die "parse: '${__sdisp[${k}]}' must be a float number"
                     parse_set_scalar "${k}" "${val}"
                 elif [[ "${tv}" == "char" ]]; then
-                    [[ "${#val}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character" 2
+                    [[ "${#val}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character"
                     parse_set_scalar "${k}" "${val}"
                 elif [[ "${tv}" == "list" ]]; then
                     parse_array_append "${k}" "${val}"
@@ -2022,23 +2023,23 @@ parse_args__parse_argv () {
 
                     done
 
-                    (( consumed )) || die "parse: '${arg}' expects a value" 2
+                    (( consumed )) || die "parse: '${arg}' expects a value"
 
                     __set["${k}"]=1
                     continue
 
                 fi
 
-                (( i < ${#__argv[@]} )) || die "parse: '${arg}' expects a value" 2
+                (( i < ${#__argv[@]} )) || die "parse: '${arg}' expects a value"
                 next="${__argv[$i]}"
 
                 if [[ "${next}" == "--" ]]; then
-                    die "parse: '${arg}' expects a value" 2
+                    die "parse: '${arg}' expects a value"
                 fi
                 if parse_is_option_like "${next}"; then
 
                     if [[ "${tv}" == "int" || "${tv}" == "float" ]] && parse_is_neg_number_token "${next}"; then :
-                    else die "parse: '${arg}' expects a value (use ${arg}=VALUE for values starting with '-')" 2
+                    else die "parse: '${arg}' expects a value (use ${arg}=VALUE for values starting with '-')"
                     fi
 
                 fi
@@ -2046,8 +2047,8 @@ parse_args__parse_argv () {
                 i=$(( i + 1 ))
 
                 if [[ "${tv}" == "int" ]]; then next="$(parse_int_norm "${next}" "${__sdisp[${k}]}" )"
-                elif [[ "${tv}" == "float" ]]; then parse_is_float "${next}" || die "parse: '${__sdisp[${k}]}' must be a float number" 2
-                elif [[ "${tv}" == "char" ]]; then [[ "${#next}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character" 2
+                elif [[ "${tv}" == "float" ]]; then parse_is_float "${next}" || die "parse: '${__sdisp[${k}]}' must be a float number"
+                elif [[ "${tv}" == "char" ]]; then [[ "${#next}" -eq 1 ]] || die "parse: '${__sdisp[${k}]}' must be exactly 1 character"
                 fi
 
                 if [[ "${tv}" == "list" ]]; then parse_array_append "${k}" "${next}"
@@ -2076,9 +2077,9 @@ parse_args__parse_argv () {
 
             case "${tv}" in
                 int)   arg="$(parse_int_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" 2 ;;
+                float) parse_is_float "${arg}" || die "parse: '${__sdisp[${pn}]}' must be a float number" ;;
                 bool)  arg="$(parse_bool_norm "${arg}" "${__sdisp[${pn}]}" )" ;;
-                char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" 2 ;;
+                char)  [[ "${#arg}" -eq 1 ]] || die "parse: '${__sdisp[${pn}]}' must be exactly 1 character" ;;
             esac
 
             parse_set_scalar "${pn}" "${arg}"
@@ -2120,7 +2121,7 @@ parse_args__apply_defaults () {
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             float)
-                parse_is_float "${def_raw}" || die "parse: '${__sdisp[${n}]}' default must be a float number" 2
+                parse_is_float "${def_raw}" || die "parse: '${__sdisp[${n}]}' default must be a float number"
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             bool)
@@ -2128,7 +2129,7 @@ parse_args__apply_defaults () {
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             char)
-                [[ "${#def_raw}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' default must be exactly 1 character" 2
+                [[ "${#def_raw}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' default must be exactly 1 character"
                 parse_set_scalar "${n}" "${def_raw}"
             ;;
             list)
@@ -2163,7 +2164,7 @@ parse_args__validate_and_normalize () {
 
     if (( __sreq[kwargs] )); then
         local -n __r_kwargs="kwargs"
-        (( ${#__r_kwargs[@]} )) || die "parse: missing required 'kwargs'" 2
+        (( ${#__r_kwargs[@]} )) || die "parse: missing required 'kwargs'"
         __set["kwargs"]=1
     fi
 
@@ -2172,8 +2173,8 @@ parse_args__validate_and_normalize () {
 
         tv="${__stype[${n}]}"
 
-        if (( __sreq[n] )); then
-            [[ -n "${__set[${n}]-}" ]] || die "parse: missing required '${__sdisp[${n}]}'" 2
+        if (( __sreq[${n}] )); then
+            [[ -n "${__set[${n}]-}" ]] || die "parse: missing required '${__sdisp[${n}]}'"
         fi
 
         [[ -n "${__set[${n}]-}" ]] || continue
@@ -2183,28 +2184,28 @@ parse_args__validate_and_normalize () {
                 parse_set_scalar "${n}" "$(parse_int_norm "${!n-}" "${__sdisp[${n}]}" )"
             ;;
             float)
-                parse_is_float "${!n-}" || die "parse: '${__sdisp[${n}]}' must be a float number" 2
+                parse_is_float "${!n-}" || die "parse: '${__sdisp[${n}]}' must be a float number"
             ;;
             bool)
                 parse_set_scalar "${n}" "$(parse_bool_norm "${!n-}" "${__sdisp[${n}]}" )"
             ;;
             char)
                 vv="${!n-}"
-                if (( __sreq[n] )); then
-                    [[ "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character" 2
+                if (( __sreq[${n}] )); then
+                    [[ "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character"
                 else
-                    [[ -z "${vv}" || "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character" 2
+                    [[ -z "${vv}" || "${#vv}" -eq 1 ]] || die "parse: '${__sdisp[${n}]}' must be exactly 1 character"
                 fi
             ;;
             str|any)
-                if (( __sreq[n] )); then
-                    [[ -n "${!n-}" ]] || die "parse: '${__sdisp[${n}]}' can't be empty" 2
+                if (( __sreq[${n}] )); then
+                    [[ -n "${!n-}" ]] || die "parse: '${__sdisp[${n}]}' can't be empty"
                 fi
             ;;
             list)
-                if (( __sreq[n] )); then
+                if (( __sreq[${n}] )); then
                     local -n r="${n}"
-                    (( ${#r[@]} )) || die "parse: missing required '${__sdisp[${n}]}'" 2
+                    (( ${#r[@]} )) || die "parse: missing required '${__sdisp[${n}]}'"
                 fi
             ;;
         esac
@@ -2221,6 +2222,7 @@ parse_args__validate_and_normalize () {
     for n in "${__order[@]}"; do
 
         tv="${__stype[${n}]}"
+
         if [[ "${tv}" == "list" ]]; then
             local -n r="${n}"
             parse_emit_array "${emit_scope}" "${n}" "${r[@]}"
@@ -2250,31 +2252,31 @@ parse_usage_extract () {
         case "${in_schema[$i]}" in
             --usage|--help|-h|--h)
                 out_usage="${in_schema[$(( i + 1 ))]-}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 2 ))
                 continue
             ;;
             --usage=*)
                 out_usage="${in_schema[$i]#--usage=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
             --help=*)
                 out_usage="${in_schema[$i]#--help=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
             -h=*)
                 out_usage="${in_schema[$i]#-h=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
             --h=*)
                 out_usage="${in_schema[$i]#--h=}"
-                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name" 2
+                [[ -n "${out_usage}" ]] || die "parse: help/usage flag requires function name"
                 i=$(( i + 1 ))
                 continue
             ;;
@@ -2287,13 +2289,14 @@ parse_usage_extract () {
     in_schema=( "${cleaned[@]}" )
 
     if [[ -n "${out_usage}" ]]; then
-        [[ "${out_usage}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid usage fn: ${out_usage}" 2
+        [[ "${out_usage}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || die "parse: invalid usage fn: ${out_usage}"
     fi
 
 }
 parse_args () {
 
-    local IFS=$' \n\t' scope="assign" usage_fn="" a=""
+    local IFS=$' \n\t'
+    local scope="assign"
 
     if [[ "${1-}" == "--local" ]]; then
         scope="local"
@@ -2303,12 +2306,17 @@ parse_args () {
         shift || true
     fi
 
+    local PARSE_EMIT_MODE=0
+    [[ "${scope}" != "assign" ]] && PARSE_EMIT_MODE=1
+
     parse_require_bash
 
     local -a argv=()
     local -a schema=()
 
     parse_args_split argv schema "$@"
+
+    local usage_fn="" a=""
     parse_usage_extract schema usage_fn
 
     for a in "${argv[@]}"; do
@@ -2355,10 +2363,14 @@ parse_args () {
     local have_kwargs_schema=0
 
     parse_args__schema_build schema stype sreq sdef sdef_has alias_to sdisp order pos_order auto_order auto_has_opt kwargs_req have_kwargs_schema
+
     parse_args__infer_auto_types argv auto_order auto_has_opt alias_to stype
+    parse_args__validate_pos_list_last pos_order stype sdisp
+
     parse_args__init_values order stype
     parse_args__parse_argv argv pos_order stype alias_to sdisp set
     parse_args__apply_defaults order stype sdef sdef_has sdisp set
+
     parse_args__validate_and_normalize "${scope}" order stype sreq sdisp set
 
     return 0
@@ -2370,12 +2382,9 @@ parse () {
 
     die () {
 
-        local msg="${1:-}" code="${2:-2}"
-
-        printf '❌ %s\n' "${msg}" >&2
-        printf 'return %s 2>/dev/null || exit %s\n' "${code}" "${code}"
-
-        exit 0
+        printf '❌ %s\n' "${1:-}" >&2
+        printf 'return %s 2>/dev/null || exit %s\n' "${2:-2}" "${2:-2}"
+        exit 99
 
     }
 
@@ -2386,6 +2395,7 @@ parse () {
     else unset -f die 2>/dev/null || true
     fi
 
+    [[ "${rc}" == 99 ]] && return 0
     return "${rc}"
 
 }
@@ -4571,7 +4581,7 @@ ensure_pkg () {
 
 ensure_tool () {
 
-    ensure_pkg "$@" 1>&2
+    ensure_pkg "$@" 1>&2 || true
 
 }
 tool_target () {
@@ -6139,7 +6149,7 @@ forge_resolve_dest () {
 
     local dir="${1:-}" name="${2:-}"
 
-    dir="${dir:-${WORKSPACE_DIR:-${PWD}}}"
+    dir="${dir:-${WORKSPACE_DIR:-}}"
     dir="${dir/#\~/${HOME}}"
     dir="${dir%/}"
 
@@ -6171,7 +6181,7 @@ forge_resolve_path () {
 
 forge_template_dir () {
 
-    ensure_pkg awk tail tar mkdir rm dirname
+    ensure_tool awk tail tar mkdir rm dirname
 
     [[ -d "${TEMPLATE_DIR:-}" ]] && { printf '%s\n' "${TEMPLATE_DIR}"; return 0; }
 
@@ -6362,71 +6372,6 @@ cmd_new_ws () {
 
 }
 
-fs_new_dir () {
-
-    ensure_tool mkdir chmod
-    source <(parse "$@" -- :src mode)
-
-    run mkdir -p -- "${src}"
-    [[ -n "${mode}" ]] && run chmod -- "${mode}" "${src}"
-
-}
-fs_new_file () {
-
-    ensure_tool mkdir chmod touch dirname
-    source <(parse "$@" -- :src mode)
-
-    run mkdir -p -- "$(dirname -- "${src}")"
-    run touch -- "${src}"
-
-    [[ -n "${mode}" ]] && run chmod -- "${mode}" "${src}"
-
-}
-fs_path_type () {
-
-    local p="${1:-}" type="unknown"
-
-    [[ -e "${p}" ]] && type="other"
-    [[ -d "${p}" ]] && type="dir"
-    [[ -f "${p}" ]] && type="file"
-    [[ -L "${p}" ]] && type="symlink"
-
-    printf '%s\n' "${type}"
-    return 0
-
-}
-fs_file_type () {
-
-    ensure_tool file
-    local p="${1:-}" mime="" enc=""
-
-    [[ -L "${p}" ]] && { printf '%s\n' "symlink"; return 0; }
-    [[ -d "${p}" ]] && { printf '%s\n' "dir"; return 0; }
-    [[ -e "${p}" ]] || { printf '%s\n' "missing"; return 1; }
-
-    mime="$(file -b --mime-type -- "${p}" 2>/dev/null || true)"
-    enc="$(file -b --mime-encoding -- "${p}" 2>/dev/null || true)"
-
-    case "${mime}" in
-        text/*) printf '%s\n' "text"; return 0 ;;
-        image/*) printf '%s\n' "image"; return 0 ;;
-        video/*) printf '%s\n' "video"; return 0 ;;
-        audio/*) printf '%s\n' "audio"; return 0 ;;
-        application/pdf) printf '%s\n' "pdf"; return 0 ;;
-    esac
-    case "${p,,}" in
-        *.pdf) printf '%s\n' "pdf"; return 0 ;;
-        *.doc|*.docx|*.dot|*.dotx|*.docm|*.dotm) printf '%s\n' "word"; return 0 ;;
-        *.xls|*.xlsx|*.xlsm|*.xlt|*.xltx|*.xltm) printf '%s\n' "excel"; return 0 ;;
-    esac
-
-    [[ "${enc}" == "binary" ]] && { printf '%s\n' "binary"; return 0; }
-
-    printf '%s\n' "other"
-    return 0
-
-}
-
 fs_file_exists () {
 
     [[ -f "${1:-}" ]]
@@ -6442,11 +6387,79 @@ fs_path_exists () {
     [[ -e "${1:-}" || -L "${1:-}" ]]
 
 }
+fs_new_dir () {
+
+    ensure_tool mkdir chmod
+    source <(parse "$@" -- :name mode)
+
+    run mkdir -p -- "${name}"
+    [[ -n "${mode}" ]] && run chmod -- "${mode}" "${name}"
+
+}
+fs_new_file () {
+
+    ensure_tool mkdir chmod touch dirname
+    source <(parse "$@" -- :name mode)
+
+    run mkdir -p -- "$(dirname -- "${name}")"
+    run touch -- "${name}"
+
+    [[ -n "${mode}" ]] && run chmod -- "${mode}" "${name}"
+
+}
+fs_path_type () {
+
+    source <(parse "$@" -- :src)
+    local type="unknown"
+
+    [[ -e "${src}" ]] && type="other"
+    [[ -d "${src}" ]] && type="dir"
+    [[ -f "${src}" ]] && type="file"
+    [[ -L "${src}" ]] && type="symlink"
+
+    printf '%s\n' "${type}"
+    return 0
+
+}
+fs_file_type () {
+
+    ensure_tool file
+    source <(parse "$@" -- :src)
+
+    [[ -L "${src}" ]] && { printf '%s\n' "symlink"; return 0; }
+    [[ -d "${src}" ]] && { printf '%s\n' "dir"; return 0; }
+    [[ -e "${src}" ]] || { printf '%s\n' "missing"; return 1; }
+
+    local mime="$(file -b --mime-type -- "${src}" 2>/dev/null || true)"
+    local enc="$(file -b --mime-encoding -- "${src}" 2>/dev/null || true)"
+
+    case "${mime}" in
+        text/*) printf '%s\n' "text"; return 0 ;;
+        image/*) printf '%s\n' "image"; return 0 ;;
+        video/*) printf '%s\n' "video"; return 0 ;;
+        audio/*) printf '%s\n' "audio"; return 0 ;;
+        application/pdf) printf '%s\n' "pdf"; return 0 ;;
+    esac
+    case "${src,,}" in
+        *.pdf) printf '%s\n' "pdf"; return 0 ;;
+        *.doc|*.docx|*.dot|*.dotx|*.docm|*.dotm) printf '%s\n' "word"; return 0 ;;
+        *.xls|*.xlsx|*.xlsm|*.xlt|*.xltx|*.xltm) printf '%s\n' "excel"; return 0 ;;
+    esac
+
+    [[ "${enc}" == "binary" ]] && { printf '%s\n' "binary"; return 0; }
+
+    printf '%s\n' "other"
+    return 0
+
+}
 
 fs_copy_path () {
 
     ensure_tool cp mkdir dirname
-    source <(parse "$@" -- :src :dest)
+    source <(parse "$@" -- src :dest)
+
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
 
     run mkdir -p -- "$(dirname -- "${dest}")"
     local -a cmd=( cp )
@@ -6461,41 +6474,29 @@ fs_copy_path () {
 fs_move_path () {
 
     ensure_tool mv mkdir dirname
-    source <(parse "$@" -- :src :dest)
+    source <(parse "$@" -- src :dest)
+
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ "${src}" == "/" ]] && die "Refuse to move '/'"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
 
     run mkdir -p -- "$(dirname -- "${dest}")"
     run mv "${kwargs[@]}" -- "${src}" "${dest}"
 
 }
-fs_remove_path () {
-
-    ensure_tool rm find
-    source <(parse "$@" -- :src clear:bool)
-
-    [[ "${src}" == "/" || "${src}" == "." || "${src}" == ".." ]] && die "Refuse to delete '/' '.' '..'"
-
-    if (( clear )); then
-
-        [[ -d "${src}" ]] || die "Not a directory: ${src}"
-        find "${src}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-        return 0
-
-    fi
-
-    run rm -rf "${kwargs[@]}" -- "${src}"
-
-}
 fs_trash_path () {
 
     ensure_tool mkdir mv date basename
-    source <(parse "$@" -- :src trash_dir)
+    source <(parse "$@" -- src trash_dir)
 
-    [[ "${src}" == "/" || "${src}" == "." || "${src}" == ".." ]] && die "Refuse to trash '/' '.' '..'"
-    local dir=""
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ "${src}" == "/" ]] && die "Refuse to trash '/'"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
+
+    local dir="${XDG_DATA_HOME:-"${HOME}/.local/share"}/Trash/files"
 
     if [[ -n "${trash_dir}" ]]; then dir="${trash_dir%/}"
     elif [[ "${OSTYPE:-}" == darwin* ]]; then dir="${HOME}/.Trash"
-    else dir="${XDG_DATA_HOME:-"${HOME}/.local/share"}/Trash/files"
     fi
 
     run mkdir -p -- "${dir}"
@@ -6508,20 +6509,47 @@ fs_trash_path () {
     printf '%s\n' "${dest}"
 
 }
+fs_remove_path () {
+
+    ensure_tool rm find
+    source <(parse "$@" -- src clear:bool)
+
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ "${src}" == "/" ]] && die "Refuse to remove '/'"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
+
+    if (( clear )); then
+
+        if [[ -f "${src}" ]]; then : > "${src}" || die "Cannot clear file: ${src}"
+        else find "${src}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || die "Cannot clear dir: ${src}"
+        fi
+
+        return 0
+
+    fi
+
+    run rm -rf "${kwargs[@]}" -- "${src}"
+
+}
 fs_link_path () {
 
     ensure_tool mkdir ln dirname
-    source <(parse "$@" -- :src :dest)
+    source <(parse "$@" -- src :dest)
+
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
 
     run mkdir -p -- "$(dirname -- "${dest}")"
     run ln -sfn "${kwargs[@]}" -- "${src}" "${dest}"
 
 }
-
 fs_stats_path () {
 
     ensure_tool stat
-    source <(parse "$@" -- :src)
+    source <(parse "$@" -- src)
+
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
 
     if stat --version >/dev/null 2>&1; then stat -c $'path=%n\ntype=%F\nsize=%s\nperm=%a\nowner=%U\ngroup=%G\nmtime=%y' -- "${src}"
     else stat -f $'path=%N\ntype=%HT\nsize=%z\nperm=%Lp\nowner=%Su\ngroup=%Sg\nmtime=%Sm' -t "%Y-%m-%d %H:%M:%S" -- "${src}"
@@ -6531,8 +6559,9 @@ fs_stats_path () {
 fs_diff_path () {
 
     ensure_tool diff
-    source <(parse "$@" -- :src :dest recursive:bool=true brief:bool=true)
+    source <(parse "$@" -- src :dest recursive:bool=true brief:bool=true)
 
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
     [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
     [[ -e "${dest}" || -L "${dest}" ]] || die "Path not found: ${dest}"
 
@@ -6548,8 +6577,9 @@ fs_diff_path () {
 fs_synced_path () {
 
     ensure_tool diff
-    source <(parse "$@" -- :src :dest recursive:bool=true)
+    source <(parse "$@" -- src :dest recursive:bool=true)
 
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
     [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
     [[ -e "${dest}" || -L "${dest}" ]] || die "Path not found: ${dest}"
 
@@ -6564,48 +6594,161 @@ fs_synced_path () {
 
 }
 
-fs_compress_path () {
+fs_ucfirst_path () {
 
-    ensure_tool mkdir dirname basename tar
-    source <(parse "$@" -- src dest name type=zip exclude:list)
+    local p="${1:-}" base_dir="${2:-}" rest="" out="" seg="" trailing=0
+    local -a parts=()
 
-    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
-    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
+    if [[ -n "${base_dir}" ]]; then
 
-    local base="${src%/}" kind="${type,,}" ext="" i=""
-    local dir="$(dirname -- "${base}")"
-    local entry="$(basename -- "${base}")"
+        base_dir="${base_dir%/}"
+        rest="${p#${base_dir}}"
 
-    name="${name:-"${entry}"}"
+        [[ "${p}" == "${base_dir}" || "${p}" == "${base_dir}/"* ]] || { printf '%s\n' "${p}"; return 0; }
+        [[ -z "${rest}" ]] && { printf '%s\n' "${base_dir}"; return 0; }
+        [[ "${rest}" == */ && "${rest}" != "/" ]] && trailing=1
 
-    if [[ -z "${dest}" ]]; then
+        rest="${rest#/}"
+        rest="${rest%/}"
 
-        case "${kind}" in
-            zip)           dest="${PWD}/${name}.zip" ;;
-            rar)           dest="${PWD}/${name}.rar" ;;
-            7z)            dest="${PWD}/${name}.7z" ;;
-            tar)           dest="${PWD}/${name}.tar" ;;
-            tgz|gz)        dest="${PWD}/${name}.tar.gz" ;;
-            txz|xz)        dest="${PWD}/${name}.tar.xz" ;;
-            tbz2|bz2)      dest="${PWD}/${name}.tar.bz2" ;;
-            tzst|zst|zstd) dest="${PWD}/${name}.tar.zst" ;;
-            *)             dest="${PWD}/${name}.${type}" ;;
-        esac
+        IFS='/' read -r -a parts <<< "${rest}"
+
+        for seg in "${parts[@]}"; do
+
+            seg="${seg^}"
+            [[ -n "${seg}" ]] || continue
+            [[ -n "${out}" ]] && out+="/${seg}" || out="${seg}"
+
+        done
+
+        [[ -n "${out}" ]] && out="/${out}"
+        (( trailing )) && out+="/"
+
+        printf '%s\n' "${base_dir}${out}"
+        return 0
 
     fi
 
-    [[ "${dest}" == /* ]] || dest="${PWD}/${dest#./}"
-    run mkdir -p -- "$(dirname -- "${dest}")"
+    [[ "${p}" == /mnt/* || "${p}" == "/mnt" ]] || { printf '%s\n' "${p}"; return 0; }
+    [[ "${p}" == */ && "${p}" != "/" ]] && trailing=1
 
-    ext="${dest,,}"
+    p="${p#/}"
+    p="${p%/}"
+
+    IFS='/' read -r -a parts <<< "${p}"
+
+    for seg in "${parts[@]}"; do
+
+        seg="${seg^}"
+        [[ -n "${seg}" ]] || continue
+        [[ -n "${out}" ]] && out+="/${seg}" || out="${seg}"
+
+    done
+
+    [[ -n "${out}" ]] && out="/${out}"
+    (( trailing )) && out+="/"
+
+    printf '%s\n' "${out:-/}"
+
+}
+fs_compress_type () {
+
+    local type="${1:-}" name="${2:-}"
+
+    case "${type,,}" in
+        zip|rar|tar|7z) ;;
+        tgz|gz|tar.gz)     type="tar.gz" ;;
+        txz|xz|tar.xz)     type="tar.xz" ;;
+        tbz2|bz2|tar.bz2)  type="tar.bz2" ;;
+        tzst|zst|tar.zst)  type="tar.zst" ;;
+        "")
+            case "${name,,}" in
+                *.tar.zst) type="tar.zst" ;;
+                *.tar.gz|*.tgz) type="tar.gz" ;;
+                *.tar.xz|*.txz) type="tar.xz" ;;
+                *.tar.bz2|*.tbz2) type="tar.bz2" ;;
+                *.tar) type="tar" ;;
+                *.zip) type="zip" ;;
+                *.rar) type="rar" ;;
+                *.7z) type="7z" ;;
+                *) type="zip" ;;
+            esac
+        ;;
+        *) die "Unsupported archive type: ${type}" ;;
+    esac
+
+    printf '%s\n' "${type}"
+
+}
+fs_compress_name () {
+
+    local name="${1:-}"
+
+    name="${name%.tar.zst}"
+    name="${name%.tar.gz}"
+    name="${name%.tar.xz}"
+    name="${name%.tar.bz2}"
+    name="${name%.tgz}"
+    name="${name%.txz}"
+    name="${name%.tbz2}"
+    name="${name%.tzst}"
+    name="${name%.tar}"
+    name="${name%.zip}"
+    name="${name%.rar}"
+    name="${name%.7z}"
+
+    printf '%s\n' "${name}"
+
+}
+fs_compress_dest () {
+
+    local dest="${1:-}" type="${2:-}" name="${3:-}"
+
+    [[ -n "${dest}" ]] || dest="${PWD}/${name}.${type}"
+    [[ "${dest}" == /* ]] || dest="${PWD}/${dest#./}"
+
+    dest="${dest%.tar.zst}"
+    dest="${dest%.tar.gz}"
+    dest="${dest%.tar.xz}"
+    dest="${dest%.tar.bz2}"
+    dest="${dest%.tgz}"
+    dest="${dest%.txz}"
+    dest="${dest%.tbz2}"
+    dest="${dest%.tzst}"
+    dest="${dest%.tar}"
+    dest="${dest%.zip}"
+    dest="${dest%.rar}"
+    dest="${dest%.7z}"
+    dest="${dest}.${type}"
+
+    run mkdir -p -- "$(dirname -- "${dest}")"
+    printf '%s\n' "${dest}"
+
+}
+
+fs_compress_path () {
+
+    ensure_tool mkdir dirname basename tar
+    source <(parse "$@" -- src dest name type exclude:list)
+
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
 
     local -a cmd=()
     local -a ignores=()
 
+    local dir="$(dirname -- "${src%/}")"
+    local entry="$(basename -- "${src%/}")"
+
+    name="${name:-"${entry}"}"
+    type="$(fs_compress_type "${type}" "${name}")"
+    name="$(fs_compress_name "${name}")"
+    dest="$(fs_compress_dest "${dest}" "${type}" "${name}")"
+
     mapfile -t ignores < <(ignore_list)
     ignores+=( "${exclude[@]-}" )
 
-    if [[ "${kind}" == "zip" || "${ext}" == *.zip ]]; then
+    if [[ "${type}" == "zip" ]]; then
 
         ensure_tool zip
 
@@ -6624,7 +6767,7 @@ fs_compress_path () {
         return 0
 
     fi
-    if [[ "${kind}" == "rar" || "${ext}" == *.rar ]]; then
+    if [[ "${type}" == "rar" ]]; then
 
         ensure_tool rar
 
@@ -6643,7 +6786,7 @@ fs_compress_path () {
         return 0
 
     fi
-    if [[ "${kind}" == "7z" || "${ext}" == *.7z ]]; then
+    if [[ "${type}" == "7z" ]]; then
 
         ensure_tool 7z
 
@@ -6662,7 +6805,7 @@ fs_compress_path () {
         return 0
 
     fi
-    if [[ "${kind}" == "tzst" || "${kind}" == "zst" || "${kind}" == "zstd" || "${ext}" == *.tar.zst || "${ext}" == *.tzst ]]; then
+    if [[ "${type}" == "tar.zst" ]]; then
 
         ensure_tool zstd
 
@@ -6696,11 +6839,11 @@ fs_compress_path () {
 
     fi
 
-    if [[ "${kind}" == "tgz" || "${kind}" == "gz" || "${ext}" == *.tar.gz || "${ext}" == *.tgz ]]; then cmd=( tar -czf "${dest}" )
-    elif [[ "${kind}" == "txz" || "${kind}" == "xz" || "${ext}" == *.tar.xz || "${ext}" == *.txz ]]; then cmd=( tar -cJf "${dest}" )
-    elif [[ "${kind}" == "tbz2" || "${kind}" == "bz2" || "${ext}" == *.tar.bz2 || "${ext}" == *.tbz2 ]]; then cmd=( tar -cjf "${dest}" )
-    elif [[ "${kind}" == "tar" || "${ext}" == *.tar ]]; then cmd=( tar -cf "${dest}" )
-    else die "Unsupported archive type: ${dest}"
+    if [[ "${type}" == "tar.gz" ]]; then cmd=( tar -czf "${dest}" )
+    elif [[ "${type}" == "tar.xz" ]]; then cmd=( tar -cJf "${dest}" )
+    elif [[ "${type}" == "tar.bz2" ]]; then cmd=( tar -cjf "${dest}" )
+    elif [[ "${type}" == "tar" ]]; then cmd=( tar -cf "${dest}" )
+    else die "Unsupported archive type: ${type}"
     fi
 
     for i in "${ignores[@]-}"; do
@@ -6717,19 +6860,19 @@ fs_extract_path () {
     ensure_tool mkdir tar
     source <(parse "$@" -- :src dest strip:int)
 
-    [[ -e "${src}" || -L "${src}" ]] || die "Archive not found: ${src}"
-    [[ -n "${dest}" ]] || dest="."
-
-    run mkdir -p -- "${dest}"
+    [[ -e "${src}" || -L "${src}" ]] || die "File not found: ${src}"
+    [[ -n "${dest}" ]] || dest="${PWD}"
+    [[ "${dest}" == /* ]] || dest="${PWD}/${dest#./}"
 
     local ext="${src,,}"
     local -a cmd=( tar )
+
+    run mkdir -p -- "${dest}"
 
     if [[ "${ext}" == *.zip ]]; then
 
         ensure_tool unzip
         run unzip -oq "${kwargs[@]}" -- "${src}" -d "${dest}"
-
         printf '%s\n' "${dest}"
         return 0
 
@@ -6738,7 +6881,6 @@ fs_extract_path () {
 
         ensure_tool unrar
         run unrar x -o+ -y "${kwargs[@]}" "${src}" "${dest}/"
-
         printf '%s\n' "${dest}"
         return 0
 
@@ -6747,7 +6889,6 @@ fs_extract_path () {
 
         ensure_tool 7z
         run 7z x -y "${kwargs[@]}" -o"${dest}" "${src}"
-
         printf '%s\n' "${dest}"
         return 0
 
@@ -6759,15 +6900,16 @@ fs_extract_path () {
         if tar --help 2>/dev/null | grep -q -- '--zstd'; then
 
             cmd+=( --zstd -xf )
-            (( strip > 0 )) && cmd+=( --strip-components "${strip}" )
 
+            (( strip > 0 )) && cmd+=( --strip-components "${strip}" )
             run "${cmd[@]}" "${kwargs[@]}" -- "${src}" -C "${dest}"
 
         else
 
-            local -a tar_cmd=( tar -xf - -C "${dest}" )
+            local -a tar_cmd=( tar )
 
             (( strip > 0 )) && tar_cmd+=( --strip-components "${strip}" )
+            tar_cmd+=( -xf - -C "${dest}" )
             tar_cmd+=( "${kwargs[@]}" )
 
             ( zstd -dc -- "${src}" | "${tar_cmd[@]}" ) || die "Failed to extract zstd archive: ${src}"
@@ -6788,40 +6930,49 @@ fs_extract_path () {
 
     (( strip > 0 )) && cmd+=( --strip-components "${strip}" )
 
-    run "${cmd[@]}" "${kwargs[@]}" -- "${src}" -C "${dest}"
+    run "${cmd[@]}" "${kwargs[@]}" "${src}" -C "${dest}"
     printf '%s\n' "${dest}"
 
 }
 fs_backup_path () {
 
     ensure_tool date basename
-    source <(parse "$@" -- src dest name type=zip archive_dir="${ARCHIVE_DIR:-}")
+    source <(parse "$@" -- src dest name archive_dir semantic:bool=true)
 
-    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
+    [[ -n "${archive_dir}" ]]  || archive_dir="${ARCHIVE_DIR:-}"
 
-    local base_name="$(basename -- "${src%/}")" ts="$(date +'%Y-%m-%d_%H-%M-%S')" _dest_=""
+    local base_name="$(basename -- "${src%/}")" ts="$(date +'%Y-%m-%d_%H-%M-%S')"
+    local dest_dir="${dest:-${base_name}}"
 
-    [[ -n "${name}" ]] && _dest_="${dest:-${base_name}}/${name}" || _dest_="${dest:-"${base_name}/${ts}.${type:-zip}"}"
-    [[ -n "${archive_dir}" && "${_dest_}" != /* && "${_dest_}" != *:* ]] && dest="${archive_dir%/}/${_dest_}" || dest="${_dest_}"
+    [[ -n "${archive_dir}" && "${dest_dir}" != /* && "${dest_dir}" != *:* ]] && dest_dir="${archive_dir%/}/${dest_dir}"
+    (( semantic )) && dest_dir="$(fs_ucfirst_path "${dest_dir}" "${archive_dir}")"
 
-    fs_compress_path "${src}" "${dest}" "${name}" "${type}" "${kwargs[@]}"
+    dest="${dest_dir%/}/${name:-${ts}}"
+    while [[ "${dest}" == *"//"* ]]; do dest="${dest//\/\//\/}"; done
 
+    dest="$(fs_compress_path "${src}" "${dest}" "${name}" "${kwargs[@]}")"
     success "OK: ${src} archived at ${dest}"
 
 }
 fs_sync_path () {
 
-    ensure_tool rsync mkdir
-    source <(parse "$@" -- src dest src_dir="${WORKSPACE_DIR:-}" sync_dir="${SYNC_DIR:-}" force:bool=true ignore:bool=true exclude:list)
+    ensure_tool rsync mkdir basename
+    source <(parse "$@" -- src dest sync_dir force:bool=true ignore:bool=true semantic:bool=true exclude:list)
 
-    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." || "${src}" == "/" ]] && src="${PWD}"
+    [[ -z "${src}" || "${src}" == "." || "${src}" == ".." ]] && src="${PWD}"
+    [[ -e "${src}" || -L "${src}" ]] || die "Path not found: ${src}"
+    [[ -n "${sync_dir}" ]] || sync_dir="${SYNC_DIR:-}"
 
-    local rel="${src#${src_dir%/}/}"
-    [[ "${rel}" == "${src}" ]] && rel="${src#/}"
+    local rel="$(basename -- "${src%/}")"
 
     if [[ -z "${dest}" && -n "${sync_dir}" ]]; then dest="${sync_dir%/}/${rel}"
     elif [[ -z "${dest}" ]]; then dest="${rel}"
     fi
+
+    (( semantic )) && dest="$(fs_ucfirst_path "${dest}" "${sync_dir}")"
+    while [[ "${dest}" == *"//"* ]]; do dest="${dest//\/\//\/}"; done
 
     [[ -d "${src}" && "${src}" != */ ]] && src="${src}/"
     [[ -d "${src}" && "${dest}" != */ ]] && dest="${dest}/"
@@ -6846,7 +6997,6 @@ fs_sync_path () {
     fi
 
     run "${cmd[@]}" "${kwargs[@]}" -- "${src}" "${dest}"
-
     success "OK: ${src} synced at ${dest}"
 
 }
@@ -6857,23 +7007,25 @@ cmd_fs_help () {
 
     printf '    %s\n' \
         "" \
+        "is-dir                     * Check if path is directory" \
+        "is-file                    * Check if path is file" \
         "new-dir                    * Create a new directory" \
         "new-file                   * Create a new file" \
         "" \
+        "path-exists                * Check if path is exists" \
         "path-type                  * Print path type if the path exists" \
         "file-type                  * Print file type if the file exists" \
         "" \
-        "copy                       * Copy file or directory to destination" \
-        "move                       * Move file or directory to destination" \
-        "link                       * Create symlink for file or directory" \
+        "copy-path                  * Copy file or directory to destination" \
+        "move-path                  * Move file or directory to destination" \
+        "clear-path                 * Clear directory contents or truncate file" \
+        "trash-path                 * Move file or directory to trash" \
+        "remove-path                * Remove file or directory" \
+        "link-path                  * Create symlink for file or directory" \
         "" \
-        "remove                     * Remove file or directory" \
-        "trash                      * Move file or directory to trash" \
-        "clear                      * Clear directory contents or truncate file" \
-        "" \
-        "stats                      * Show file or directory statistics" \
-        "diff                       * Show diff between source and destination" \
-        "synced                     * Check whether source and destination are synced" \
+        "path-stats                 * Show file or directory statistics" \
+        "path-diff                  * Show diff between source and destination" \
+        "path-synced                * Check whether source and destination are synced" \
         "" \
         "compress                   * Compress file or directory" \
         "extract                    * Extract archive to destination" \
@@ -6883,110 +7035,108 @@ cmd_fs_help () {
 
 }
 
+cmd_is_dir () {
+
+    fs_dir_exists "$@"
+
+}
+cmd_is_file () {
+
+    fs_file_exists "$@"
+
+}
 cmd_new_dir () {
 
-    source <(parse "$@" -- :src mode)
-    fs_new_dir "${src}" "${mode}" "${kwargs[@]}"
+    fs_new_dir "$@"
 
 }
 cmd_new_file () {
 
-    source <(parse "$@" -- :src mode)
-    fs_new_file "${src}" "${mode}" "${kwargs[@]}"
+    fs_new_file "$@"
+
+}
+
+cmd_path_exists () {
+
+    fs_path_exists "$@"
 
 }
 cmd_path_type () {
 
-    source <(parse "$@" -- :src)
-    fs_path_exists "${src}" && fs_path_type "${src}" "${kwargs[@]}"
+    fs_path_type "$@"
 
 }
 cmd_file_type () {
 
-    source <(parse "$@" -- :src)
-    fs_file_exists "${src}" && fs_file_type "${src}" "${kwargs[@]}"
+    fs_file_type "$@"
 
 }
 
-cmd_copy () {
+cmd_copy_path () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_copy_path "${src}" "${dest}" "${kwargs[@]}"
-
-}
-cmd_move () {
-
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_move_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_copy_path "$@"
 
 }
-cmd_link () {
+cmd_move_path () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_link_path "${src}" "${dest}" "${kwargs[@]}"
-
-}
-cmd_remove () {
-
-    source <(parse "$@" -- :src)
-    fs_path_exists "${src}" && fs_remove_path "${src}" "${kwargs[@]}"
+    fs_move_path "$@"
 
 }
-cmd_trash () {
+cmd_clear_path () {
 
-    source <(parse "$@" -- :src trash_dir)
-    fs_path_exists "${src}" && fs_trash_path "${src}" "${trash_dir}" "${kwargs[@]}"
+    fs_remove_path "$@" --clear
 
 }
-cmd_clear () {
+cmd_trash_path () {
 
-    source <(parse "$@" -- :src)
+    fs_trash_path "$@"
 
-    fs_dir_exists "${src}" && fs_remove_path "${src}" true "${kwargs[@]}"
-    fs_file_exists "${src}" && : > "${src}"
+}
+cmd_remove_path () {
+
+    fs_remove_path "$@"
+
+}
+cmd_link_path () {
+
+    fs_link_path "$@"
 
 }
 
-cmd_stats () {
+cmd_path_stats () {
 
-    source <(parse "$@" -- :src)
-    fs_path_exists "${src}" && fs_stats_path "${src}" "${kwargs[@]}"
-
-}
-cmd_diff () {
-
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_diff_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_stats_path "$@"
 
 }
-cmd_synced () {
+cmd_path_diff () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_synced_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_diff_path "$@"
 
 }
+cmd_path_synced () {
+
+    fs_synced_path "$@"
+
+}
+
 cmd_compress () {
 
-    source <(parse "$@" -- src)
-    fs_path_exists "${src:-${PWD}}" && fs_compress_path "${src}" "${kwargs[@]}"
+    fs_compress_path "$@"
 
 }
 cmd_extract () {
 
-    source <(parse "$@" -- :src dest)
-    fs_path_exists "${src}" && fs_extract_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_extract_path "$@"
 
 }
 cmd_backup () {
 
-    source <(parse "$@" -- src)
-    fs_path_exists "${src:-${PWD}}" && fs_backup_path "${src}" "${kwargs[@]}"
+    fs_backup_path "$@"
 
 }
 cmd_sync () {
 
-    source <(parse "$@" -- src)
-    fs_path_exists "${src:-${PWD}}" && fs_sync_path "${src}" "${kwargs[@]}"
+    fs_sync_path "$@"
 
 }
 
@@ -9174,6 +9324,486 @@ cmd_notify_webhook () {
 
 }
 
+CURRENT_DIR=""
+PLAY_SOUND_PID=""
+PLAY_SOUND_PG=0
+
+userhost_short () {
+
+    local u="$(id -un 2>/dev/null || printf '%s' "${USER-unknown}")"
+    local h="$(hostname 2>/dev/null || printf '%s' "${HOSTNAME-localhost}")"
+
+    h="${h%%.*}"
+    printf '%s@%s' "${u}" "${h}"
+
+}
+set_prompt () {
+
+    local path="${1-}"
+
+    if [[ -t 1 && -n "${TERM-}" && "${TERM}" != "dumb" && -z "${NO_COLOR-}" ]]; then
+        CURRENT_DIR="\e[32m$(userhost_short)\e[0m:\e[34m${path}\e[0m\e[37m$ \e[0m"
+    else
+        CURRENT_DIR="$(userhost_short):${path}$ "
+    fi
+
+}
+
+play_sound () {
+
+    local file="${1-}" mode="${2-}" win_path="" cmd=""
+
+    stop_sound
+
+    [[ -n "${file}" ]] || return 0
+    [[ -f "${file}" ]] || return 0
+
+    [[ -n "${NO_SOUND-}" || "${SOUND-1}" == "0" ]] && return 0
+    [[ -t 1 && -n "${TERM-}" && "${TERM}" != "dumb" ]] || return 0
+
+    [[ "${mode}" == "loop" ]] || mode="once"
+
+    if command -v afplay >/dev/null 2>&1; then
+
+        if [[ "${mode}" == "loop" ]]; then
+
+            if command -v setsid >/dev/null 2>&1; then
+                setsid bash -c 'while :; do afplay "$1" >/dev/null 2>&1 || exit 0; done' _ "${file}" & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=1
+            else
+                ( while :; do afplay "${file}" >/dev/null 2>&1 || exit 0; done ) & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=0
+            fi
+
+        else
+
+            afplay "${file}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+            PLAY_SOUND_PG=0
+
+        fi
+
+        return 0
+
+    fi
+    if command -v ffplay >/dev/null 2>&1; then
+
+        if [[ "${mode}" == "loop" ]]; then
+
+            if command -v setsid >/dev/null 2>&1; then
+                setsid ffplay -nodisp -loglevel error -loop -1 "${file}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=1
+            else
+                ffplay -nodisp -loglevel error -loop -1 "${file}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=0
+            fi
+
+        else
+
+            ffplay -nodisp -autoexit -loglevel error "${file}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+            PLAY_SOUND_PG=0
+
+        fi
+
+        return 0
+
+    fi
+    if command -v paplay >/dev/null 2>&1; then
+
+        if [[ "${mode}" == "loop" ]]; then
+
+            if command -v setsid >/dev/null 2>&1; then
+                setsid bash -c 'while :; do paplay "$1" >/dev/null 2>&1 || exit 0; done' _ "${file}" & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=1
+            else
+                ( while :; do paplay "${file}" >/dev/null 2>&1 || exit 0; done ) & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=0
+            fi
+
+        else
+
+            paplay "${file}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+            PLAY_SOUND_PG=0
+
+        fi
+
+        return 0
+
+    fi
+    if command -v aplay >/dev/null 2>&1; then
+
+        if [[ "${mode}" == "loop" ]]; then
+
+            if command -v setsid >/dev/null 2>&1; then
+                setsid bash -c 'while :; do aplay -q "$1" >/dev/null 2>&1 || exit 0; done' _ "${file}" & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=1
+            else
+                ( while :; do aplay -q "${file}" >/dev/null 2>&1 || exit 0; done ) & PLAY_SOUND_PID=$!
+                PLAY_SOUND_PG=0
+            fi
+
+        else
+
+            aplay -q "${file}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+            PLAY_SOUND_PG=0
+
+        fi
+
+        return 0
+
+    fi
+    if command -v powershell.exe >/dev/null 2>&1; then
+
+        win_path="${file}"
+        command -v wslpath >/dev/null 2>&1 && win_path="$(wslpath -w "${file}" 2>/dev/null || printf '%s' "${file}")"
+        win_path="${win_path//\'/\'\'}"
+
+        if [[ "${mode}" == "loop" ]]; then cmd="\$p='${win_path}'; \$sp=New-Object Media.SoundPlayer \$p; while(\$true){ \$sp.PlaySync() }"
+        else cmd="(New-Object Media.SoundPlayer '${win_path}').PlaySync()"
+        fi
+
+        powershell.exe -NoProfile -NonInteractive -Command "${cmd}" >/dev/null 2>&1 & PLAY_SOUND_PID=$!
+        PLAY_SOUND_PG=0
+
+        return 0
+
+    fi
+
+    return 0
+
+}
+stop_sound () {
+
+    local pid="${PLAY_SOUND_PID-}"
+
+    [[ -n "${pid}" ]] || return 0
+
+    if command -v taskkill.exe >/dev/null 2>&1; then
+        taskkill.exe //T //F //PID "${pid}" >/dev/null 2>&1 || true
+    fi
+
+    kill -TERM "${pid}" >/dev/null 2>&1 || true
+    kill -TERM -- "-${pid}" >/dev/null 2>&1 || true
+
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -TERM -P "${pid}" >/dev/null 2>&1 || true
+    fi
+
+    for _ in 1 2 3 4 5 6 7 8; do
+        kill -0 "${pid}" >/dev/null 2>&1 || break
+        sleep 0.03
+    done
+
+    kill -KILL "${pid}" >/dev/null 2>&1 || true
+    kill -KILL -- "-${pid}" >/dev/null 2>&1 || true
+
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -KILL -P "${pid}" >/dev/null 2>&1 || true
+    fi
+
+    wait "${pid}" 2>/dev/null || true
+
+    PLAY_SOUND_PID=""
+    PLAY_SOUND_PG=0
+
+}
+sound_traps () {
+
+    trap 'stop_sound; exit 130' INT
+    trap 'stop_sound' TERM
+    trap 'stop_sound' EXIT
+
+}
+type_line () {
+
+    local s="${1-}" type="${2-cmd}" sound="${3:-cmd}" mode="${4-loop}" delay="" i=0
+
+    [[ "${type}" != "say" ]] && printf '%b' "${CURRENT_DIR}"
+
+    sleep 1
+    delay="$(awk -v r=22 'BEGIN{print 1/r}')"
+
+    play_sound "${ROOT_DIR}/scripts/assets/${sound}" "${mode}"
+
+    while (( i < ${#s} )); do
+        printf '%s' "${s:i:1}"
+        sleep "${delay}"
+        i=$(( i + 1 ))
+    done
+
+    stop_sound
+    printf '\n'
+
+}
+
+run_typed () {
+
+    local rc=0 shown=""
+    (( $# )) || return 0
+
+    if (( $# == 1 )); then
+        shown="${1}"
+    else
+        shown="$(printf '%q ' "$@")"
+        shown="${shown% }"
+    fi
+
+    type_line "${shown}" cmd cmd.wav
+
+    if (( $# == 1 )); then
+        if bash -lc "${1}"; then :
+        else rc=$?
+        fi
+    else
+        if "$@"; then :
+        else rc=$?
+        fi
+    fi
+
+}
+run_clear () {
+
+    type_line clear cmd cmd.wav
+    clear
+
+}
+run_say () {
+
+    local new_line="${2:-1}"
+    (( new_line )) && type_line && printf '\n'
+
+    type_line "          👉  $1" say say.wav
+    printf '\n'
+
+}
+
+cmd_cinema_help () {
+
+    info_ln "Guide :"
+
+    printf '    %s\n' \
+        "" \
+        "play                       * Guided tour: boot a demo workspace and showcase commands" \
+        "extract-gif                * Extract GIF(s) from video in high quality with support for start/duration/fps/width/loop." \
+        ''
+
+}
+cmd_extract_gif () {
+
+    ensure_tool ffmpeg
+    source <(parse "$@" -- :path out :start="00:00:00" :duration:float=60 :fps:float=20 :width:int=720 :speed:float=1 :quality=normal loop:bool)
+
+    [[ -f "${path}" ]] || die "extract-gif: file not found: ${path}" 2
+    [[ -n "${out}" ]] || out="${path%.*}.gif"
+
+    local inv="$(awk -v s="${speed}" 'BEGIN{ if (s <= 0) s = 1; printf "%.10f", 1/s }')"
+    local vf="" ff_loop="-1"
+
+    (( loop )) && ff_loop="0"
+
+    case "${quality}" in
+        high) vf="setpts=${inv}*PTS,fps=${fps},scale=${width}:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=full[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5" ;;
+        *) vf="setpts=${inv}*PTS,fps=${fps},scale=${width}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" ;;
+    esac
+
+    ffmpeg -hide_banner -loglevel error -nostdin -y -ss "${start}" -t "${duration}" -i "${path}" -vf "${vf}" -loop "${ff_loop}" "${out}"
+
+}
+cmd_cinema_show () {
+
+    sound_traps
+
+    source <(parse "$@" -- \
+        :tmp_dir="/tmp/rust-gun" \
+        :dir_name="Gun" \
+        :user="codingmstr" \
+        :repo="demo" \
+        :src_repo="git@github.com:codingmstr/rust-gun.git" \
+        :installer="install.sh" \
+    )
+
+    rm -rf -- "${tmp_dir}/${dir_name}" 2>/dev/null || true
+    cd -- "${tmp_dir}" || return 1
+    run_clear
+    sleep 1
+    set_prompt ""
+    run_typed "mkdir -p ${tmp_dir}"
+    run_typed "cd ${tmp_dir}"
+    set_prompt "${tmp_dir}"
+
+    run_clear
+    run_say "Hi, Rustaceans 🫡"
+    run_say "Prepare your coffee and enjoy the show ☕" 0
+    run_say "Let's get started and see the amazing rust-gun commands 😎" 0
+    sleep 1
+
+    cd -- "${tmp_dir}/${dir_name}" || return 1
+    run_clear
+    run_say "Boot a clean workspace."
+    run_typed "mkdir -p ${dir_name}"
+    run_typed "cd ${dir_name}"
+    set_prompt "${tmp_dir}/${dir_name}"
+
+    run_clear
+    run_say "clone the template into this folder."
+    run_typed "git clone ${src_repo} ."
+
+    run_clear
+    run_say "Install + stamp template placeholders (alias/name/repo metadata) so this becomes YOUR project."
+    run_typed "bash ${installer} --alias gun --name demo --description \"this is my demo crate\" --user \"${user}\" --repo \"${repo}\""
+    run_typed "which gun"
+
+    run_clear
+    run_say "Create the GitHub repo and wire this workspace for real pushes/releases."
+    run_typed "gun init ${user}/${repo}"
+    run_say "Check current remote status, atuh ..."
+    run_typed "gun remote"
+    run_say "Creating secrets and environmental variables."
+    run_typed "mv .secrets.example .secrets"
+    run_say "Fill in the secret values in the .secrets file."
+    run_say "Now sync secrets from your local file into GitHub."
+    run_typed "gun sync-secrets"
+
+    run_clear
+    run_say "Show the command surface: one CLI to rule the whole workspace."
+    run_typed "gun --help"
+
+    run_clear
+    run_say "Help pages for the main pillars: lint/ci/doctor (fast discovery without reading docs)."
+    run_typed "gun cinema-help"
+    run_typed "gun notify-help"
+    run_typed "gun git-help"
+    run_typed "gun github-help"
+    run_typed "gun crate-help"
+    run_typed "gun lint-help"
+    run_typed "gun perf-help"
+    run_typed "gun safety-help"
+    run_typed "gun doctor-help"
+    run_typed "gun meta-help"
+    run_typed "gun ci-help"
+
+    run_clear
+    run_say "Auto help for any command: (args/options/flags)."
+    run_typed "gun help sync-secrets"
+    run_typed "gun help cinema-show"
+    run_typed "gun help publish"
+    run_typed "gun help yank"
+    run_typed "gun help notify"
+    run_typed "gun help push"
+    run_typed "gun help samply"
+    run_typed "gun help fuzz"
+    run_typed "gun help doctor"
+
+    run_clear
+    run_say "See source code + file path (and line numbers) for any command."
+    run_typed "gun source help"
+    run_typed "gun source add-var"
+    run_typed "gun source add-secret"
+    run_typed "gun source ensure"
+    run_typed "gun source ci-local"
+
+    run_clear
+    run_say "Diagnose environment: OS + Bash + Rust + Git + required tools (catch problems before CI screams)."
+    run_typed "gun doctor"
+    run_clear
+    run_say "Ensure tooling: installs/validates cargo tools and utilities (autopilot mode)."
+    run_typed "gun ensure"
+
+    run_clear
+    run_say "Toolchain matrix: show and run stable/nightly/MSRV and inspect active toolchain."
+    run_typed "gun version"
+    run_typed "gun stable"
+    run_typed "gun nightly"
+    run_typed "gun msrv"
+    run_typed "gun active"
+
+    run_clear
+    run_say "Create a new crate named 'hi', a publishable crate and a private/internal one, then inspect manifests."
+    run_typed "gun new hi"
+    run_typed "cat crates/hi/Cargo.toml"
+    run_typed $'cat > crates/hi/src/lib.rs <<\'RS\'\n//! Hi crate Doc.\n\npub struct Hi;\n\nimpl Hi {\n    #[must_use]\n    pub const fn run() -> &\'static str {\n        "Iam Hi Crate"\n    }\n}\nRS\n'
+
+    run_clear
+    run_say "Workspace metadata: list package names, then only publishable crates (release safety)."
+    run_typed "gun meta --names"
+    run_typed "gun meta --names --only-publishable"
+    run_typed "gun can-publish"
+    run_typed "gun tree"
+    run_typed "gun tree-files"
+
+    run_clear
+    run_say "Read-only quality gates (checks): verify formatting, audits, TOML, and prettier without changing files."
+    run_typed "gun fmt-check"
+    run_typed "gun audit-check"
+    run_typed "gun taplo-check"
+    run_typed "gun prettier-check"
+
+    run_clear
+    run_say "Auto-fix gates: apply consistent formatting + repair common policy issues (make it green fast)."
+    run_typed "gun ws-fix"
+    run_typed "gun fmt-fix"
+    run_typed "gun audit-fix"
+    run_typed "gun taplo-fix"
+    run_typed "gun prettier-fix"
+
+    run_clear
+    run_say "Spellcheck: keep docs clean (small typos become big embarrassment)."
+    gun spell-remove SLA || true
+    run_typed "gun spell-check"
+    run_say "Add a word to dictionary, then re-run spellcheck (show the workflow)."
+    run_typed "gun spell-add SLA"
+    run_typed "gun spell-check"
+
+    run_clear
+    run_say "Supply-chain verification: vet policy check (dependency trust gate)."
+    run_typed "gun vet-check"
+    run_say 'Trust the "best" baseline set (project-defined trust presets).'
+    run_typed "gun vet-trust-best"
+    run_say 'Import the "best" audit set (project-defined import presets).'
+    run_typed "gun vet-import-best"
+    run_say "Supply-chain verification: vet policy check (dependency trust gate)."
+    run_typed "gun vet-check"
+
+    run_clear
+    run_say "Core build/run suite: check, test, docs checks, benches, and examples."
+    run_typed "gun check"
+    run_typed "gun test"
+    run_typed "gun doc-check"
+    run_typed "gun doc-test"
+    run_typed "gun doc-clean"
+    run_typed "gun bench demo"
+    run_typed "gun example demo"
+
+    run_clear
+    run_say "UB & chaos testing: fuzz quickly, then sanitizer + miri (catch dragons)."
+    run_typed "gun fuzz --timeout 5"
+    run_typed "gun sanitizer"
+    run_typed "gun miri"
+
+    run_clear
+    run_say "Clippy gate: strict linting to keep the codebase honest."
+    run_typed "gun clippy"
+    run_clear
+    run_say "Coverage output: produce lcov report artifact for CI/codecov."
+    run_typed "gun coverage --out profiles/lcov.info"
+    run_clear
+    run_say "Size gate: produce bloat report artifact (binary weight accountability)."
+    run_typed "gun bloat --out profiles/bloat.info"
+
+    run_clear
+    run_say "Full local CI simulation: run the whole pipeline before pushing (gatekeeper mode)."
+    run_typed "gun ci-local"
+    run_clear
+    run_say "Release flow: tag + changelog + push (force only for demo purposes)."
+    run_typed "gun push --release --changelog --force"
+    run_typed "cat CHANGELOG.md"
+
+    run_clear
+    run_say "Goodbye, Rustaceans 😎"
+
+    sleep 5
+
+}
+
 cmd_pretty_help () {
 
     info_ln "Pretty :"
@@ -9401,6 +10031,2998 @@ cmd_sbom () {
     run syft scan -o "${format}=${out}" "${cmd[@]}" "${kwargs[@]}" -- "${src:-dir:.}"
 
 }
+#!/usr/bin/env bash
+
+active_version () {
+
+    tool_active_version
+
+}
+stable_version () {
+
+    tool_stable_version
+
+}
+nightly_version () {
+
+    tool_nightly_version
+
+}
+msrv_version () {
+
+    tool_msrv_version
+
+}
+
+publishable_pkgs () {
+
+    ensure cargo jq
+
+    run cargo metadata --format-version=1 --no-deps | jq -r '
+        def publish_list:
+            if .publish == null then ["crates-io"]
+            elif .publish == false then []
+            elif (.publish | type) == "array" then .publish
+            else []
+            end;
+
+        . as $m
+        | ($m.workspace_members) as $ws
+        | $m.packages[]
+        | select(.id as $id | $ws | index($id) != null)
+        | select(.source == null)
+        | select((publish_list | length) > 0)
+        | select(publish_list | index("crates-io") != null)
+        | .name
+    ' | tool_sort_uniq
+
+}
+not_publishable_pkgs () {
+
+    ensure cargo jq
+
+    run cargo metadata --format-version=1 --no-deps | jq -r '
+        def publish_list:
+            if .publish == null then ["crates-io"]
+            elif .publish == false then []
+            elif (.publish | type) == "array" then .publish
+            else []
+            end;
+
+        . as $m
+        | ($m.workspace_members) as $ws
+        | $m.packages[]
+        | select(.id as $id | $ws | index($id) != null)
+        | select(.source == null)
+        | select((publish_list | length) == 0 or (publish_list | index("crates-io") == null))
+        | .name
+    ' | tool_sort_uniq
+
+}
+workspace_pkgs () {
+
+    ensure cargo jq
+
+    run cargo metadata --format-version=1 --no-deps | jq -r '
+        . as $m
+        | ($m.workspace_members) as $ws
+        | $m.packages[]
+        | select(.id as $id | $ws | index($id) != null)
+        | select(.source == null)
+        | .name
+    ' | tool_sort_uniq
+
+}
+ensure_workspace_pkg () {
+
+    (( $# > 0 )) || die "ensure_workspace_pkg: missing package name(s)" 2
+
+    local -a ws_pkgs=()
+    mapfile -t ws_pkgs < <(workspace_pkgs)
+
+    (( ${#ws_pkgs[@]} > 0 )) || die "ensure_workspace_pkg: no workspace packages found" 2
+
+    local -A ws_set=()
+    local -A miss_set=()
+    local -a missing=()
+    local x="" p=""
+
+    for x in "${ws_pkgs[@]-}"; do
+        ws_set["${x}"]=1
+    done
+
+    for p in "$@"; do
+
+        [[ -n "${p}" ]] || continue
+        [[ -n "${ws_set[${p}]-}" ]] && continue
+        [[ -n "${miss_set[${p}]-}" ]] && continue
+
+        miss_set["${p}"]=1
+        missing+=( "${p}" )
+
+    done
+
+    (( ${#missing[@]} == 0 )) || die "Unknown workspace package(s): ${missing[*]}" 2
+
+}
+
+resolve_cmd () {
+
+    source <(parse "$@" -- :name:str)
+
+    case "${name}" in
+        taplo-cli) name="taplo" ;;
+        fd|fd-find) name="fdfind" ;;
+        ripgrep) name="rg" ;;
+        rust) name="rustc" ;;
+        bat) name="batcat" ;;
+        ci-cache-clean|semver-checks ) name="cargo-${name}" ;;
+    esac
+
+    local n="${name}" n1="${name//_/-}" n2="${name//-/_}"
+
+    command -v -- "${n}"  >/dev/null 2>&1 && { printf '%s\n' "${n}"; return 0; }
+    command -v -- "${n1}" >/dev/null 2>&1 && { printf '%s\n' "${n1}"; return 0; }
+    command -v -- "${n2}" >/dev/null 2>&1 && { printf '%s\n' "${n2}"; return 0; }
+
+    if [[ "${n}" != cargo-* ]]; then
+
+        [[ "${n}" == "miri" ]] && command -v -- cargo-miri >/dev/null 2>&1 && { printf '%s\n' "cargo +nightly miri"; return 0; }
+
+        command -v -- "cargo-${n}"  >/dev/null 2>&1 && { printf '%s\n' "cargo ${n}";  return 0; }
+        command -v -- "cargo-${n1}" >/dev/null 2>&1 && { printf '%s\n' "cargo ${n1}"; return 0; }
+        command -v -- "cargo-${n2}" >/dev/null 2>&1 && { printf '%s\n' "cargo ${n2}"; return 0; }
+
+    else
+
+        command -v -- "${n}"  >/dev/null 2>&1 && { printf '%s\n' "${n}"; return 0; }
+        command -v -- "${n1}" >/dev/null 2>&1 && { printf '%s\n' "${n1}"; return 0; }
+        command -v -- "${n2}" >/dev/null 2>&1 && { printf '%s\n' "${n2}"; return 0; }
+
+    fi
+
+    return 1
+
+}
+set_perf_paranoid () {
+
+    [[ "$(os_name)" == "linux" ]] || return 0
+
+    local paranoid_file="/proc/sys/kernel/perf_event_paranoid"
+    [[ -r "${paranoid_file}" ]] || return 0
+
+    local current_val="$(tr -d ' \t\r\n' < "${paranoid_file}" 2>/dev/null || true)"
+    [[ -n "${current_val}" ]] || return 0
+    [[ "${current_val}" =~ ^-?[0-9]+$ ]] || { warn "perf_event_paranoid: unexpected value '${current_val}'"; return 0; }
+
+    (( current_val <= 1 )) && return 0
+
+    info "Kernel perf_event_paranoid=${current_val} (too restrictive for profiling; need <= 1)."
+
+    if run sudo sysctl -w kernel.perf_event_paranoid=1; then
+        success "perf_event_paranoid set to 1."
+        return 0
+    fi
+
+    die "Failed to change perf_event_paranoid. Try: echo 1 | sudo tee ${paranoid_file}" 2
+
+}
+set_perf_flame () {
+
+    ensure linux-tools-common linux-tools-generic linux-cloud-tools-generic
+
+    local k="$(uname -r)"
+    local real="$(readlink -f /usr/lib/linux-tools/*/perf 2>/dev/null | head -n 1)"
+
+    sudo mkdir -p "/usr/lib/linux-tools/${k}"
+    sudo ln -sf "${real}" "/usr/lib/linux-tools/${k}/perf"
+
+    export PERF="${real}"
+
+}
+check_max_size () {
+
+    local file="${1-}" max_size="${2-}" bytes="" limit_bytes="" s=""
+    [[ -n "${file}" && -n "${max_size}" && -f "${file}" ]] || return 0
+
+    s="${max_size}"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    s="${s//[[:space:]]/}"
+
+    case "${s}" in
+        *[!0-9A-Za-z.]*) die "bloat: invalid max_size: ${max_size}" 2 ;;
+    esac
+
+    limit_bytes="$(
+        awk -v s="${s}" '
+            BEGIN {
+                if (!match(s, /^([0-9]+(\.[0-9]+)?)([A-Za-z]*)$/, a)) exit 2
+
+                val = a[1]
+                u = tolower(a[3])
+
+                mul = 1
+
+                if (u == "" || u == "b" || u == "bytes") mul = 1
+                else if (u == "k" || u == "kb") mul = 1024
+                else if (u == "m" || u == "mb") mul = 1024 * 1024
+                else if (u == "g" || u == "gb") mul = 1024 * 1024 * 1024
+                else exit 3
+
+                out = int((val + 0) * mul + 0.5)
+                if (out < 0) out = 0
+                printf "%.0f", out
+            }
+        ' 2>/dev/null
+    )" || die "bloat: invalid max_size: ${max_size}" 2
+
+    [[ -n "${limit_bytes}" && "${limit_bytes}" =~ ^[0-9]+$ ]] || die "bloat: invalid max_size: ${max_size}" 2
+
+    if bytes="$(stat -c%s -- "${file}" 2>/dev/null)"; then :
+    elif bytes="$(stat -f%z -- "${file}" 2>/dev/null)"; then :
+    else bytes="$(wc -c < "${file}" 2>/dev/null | tr -d ' ')" || true
+    fi
+
+    [[ -n "${bytes}" && "${bytes}" =~ ^[0-9]+$ ]] || die "bloat: failed to read file size: ${file}" 2
+    (( bytes > limit_bytes )) && die "bloat: max_size exceeded: ${file} (${bytes} bytes > ${max_size})" 2
+
+}
+
+run_cargo () {
+
+    ensure cargo
+
+    local sub="${1:-}" tc="" mode="stable" use_plus=0 need_docflags=0
+    local -a pass=()
+
+    [[ -n "${sub}" ]] || die "run_cargo requires a cargo subcommand." 2
+
+    shift || true
+    has rustup && use_plus=1
+
+    case "${sub}" in
+        add|rm|bench|build|check|test|clean|doc|fetch|fix|generate-lockfile|help|init|install|locate-project|login|logout|metadata|new|info) : ;;
+        owner|package|pkgid|publish|remove|report|run|rustc|rustdoc|search|tree|uninstall|update|upgrade|vendor|verify-project|version|yank) : ;;
+        clippy|taplo|miri|samply|flamegraph|hunspell) ensure "${sub}" ;;
+        fmt|rustfmt) ensure rustfmt ;;
+        *) ensure "cargo-${sub}" ;;
+    esac
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -n|--nightly) mode="nightly"; shift || true ;;
+            -m|--msrv|--min) mode="msrv"; shift || true ;;
+            -s|--stable) mode="stable"; shift || true ;;
+            --) pass+=( "--" ); shift || true; pass+=( "$@" ); break ;;
+            *) pass+=( "$1" ); shift || true ;;
+        esac
+    done
+
+    if (( use_plus )); then
+
+        if [[ "${mode}" == "nightly" ]]; then tc="$(tool_nightly_version)"
+        elif [[ "${mode}" == "msrv" ]]; then tc="$(tool_msrv_version)"
+        else tc="$(tool_stable_version)"
+        fi
+
+    else
+
+        [[ "${mode}" == "stable" ]] || die "rustup not found: Use --stable or install rustup." 2
+
+    fi
+
+    if [[ "${sub}" == "doc" || "${sub}" == "rustdoc" ]]; then
+
+        need_docflags=1
+
+    elif [[ "${sub}" == "test" ]]; then
+
+        local a=""
+
+        for a in "${pass[@]}"; do
+            [[ "${a}" == "--doc" ]] && { need_docflags=1; break; }
+        done
+
+    fi
+
+    if (( need_docflags )); then
+
+        local docflags="$(tool_docflags_deny)"
+
+        if (( use_plus )); then
+            RUSTDOCFLAGS="${docflags}" run cargo +"${tc}" "${sub}" "${pass[@]}"
+            return $?
+        fi
+
+        RUSTDOCFLAGS="${docflags}" run cargo "${sub}" "${pass[@]}"
+        return $?
+
+    fi
+    if (( use_plus )); then
+
+        run cargo +"${tc}" "${sub}" "${pass[@]}"
+        return $?
+
+    fi
+
+    run cargo "${sub}" "${pass[@]}"
+
+}
+run_workspace () {
+
+    local command="${1:-}" features=0 targets=0 no_deps=0 all=0 workspace=1 a="" nested=""
+    local -a extra=()
+
+    [[ -n "${command}" ]] || die "run_workspace: missing sub-command" 2
+    shift || true
+
+    if [[ "${1-}" == "features-on" || "${1-}" == "features-off" ]]; then
+        [[ "${1}" == "features-on" ]] && features=1
+        shift || true
+    fi
+    if [[ "${1-}" == "targets-on" || "${1-}" == "targets-off" ]]; then
+        [[ "${1}" == "targets-on" ]] && targets=1
+        shift || true
+    fi
+    if [[ "${1-}" == "deps-on" || "${1-}" == "deps-off" ]]; then
+        [[ "${1}" == "deps-off" ]] && no_deps=1
+        shift || true
+    fi
+    if [[ "${1-}" == "all-on" || "${1-}" == "all-off" ]]; then
+        [[ "${1}" == "all-on" ]] && all=1
+        shift || true
+    fi
+    if [[ "${command}" == "nextest" || "${command}" == "hack" ]]; then
+        if [[ "${1-}" != "" && "${1}" != "--" && "${1}" != -* ]]; then
+            nested="${1}"
+            shift || true
+        fi
+    fi
+
+    for a in "$@"; do
+
+        [[ "${a}" == "--" ]] && break
+
+        case "${a}" in
+            -p|--package|--package=*|--manifest-path|--manifest-path=*|--workspace|--workspace=*|--all)
+                workspace=0
+            ;;
+        esac
+        case "${a}" in
+            -F|--features|--features=*|--no-default-features|--all-features)
+                features=0
+            ;;
+        esac
+        case "${a}" in
+            --lib|--bin|--bin=*|--bins|--example|--example=*|--examples|--test|--test=*|--tests|--bench|--bench=*|--benches|--all-targets)
+                targets=0
+            ;;
+        esac
+        case "${a}" in
+            --no-deps|--no-deps=*) no_deps=0 ;;
+        esac
+        case "${a}" in
+            --all|--all=*) all=0 ;;
+        esac
+
+    done
+
+    (( features )) && extra+=( --all-features )
+    (( targets )) && extra+=( --all-targets )
+    (( no_deps )) && extra+=( --no-deps )
+    (( all )) && extra+=( --all )
+
+    if (( ! workspace || all )); then
+
+        [[ -n "${nested}" ]] &&
+            run_cargo "${command}" "${nested}" "${extra[@]}" "$@" ||
+            run_cargo "${command}" "${extra[@]}" "$@"
+
+        return 0
+
+    fi
+
+    if [[ -n "${nested}" ]]; then run_cargo "${command}" "${nested}" --workspace "${extra[@]}" "$@"
+    else run_cargo "${command}" --workspace "${extra[@]}" "$@"
+    fi
+
+}
+run_workspace_publishable () {
+
+    local command="${1:-}" features=0 targets=0 no_deps=0 all=0 workspace=1 a=""
+    local -a extra=()
+
+    [[ -n "${command}" ]] || die "run_workspace: missing sub-command" 2
+    shift || true
+
+    if [[ "${1-}" == "features-on" || "${1-}" == "features-off" ]]; then
+        [[ "${1}" == "features-on" ]] && features=1
+        shift || true
+    fi
+    if [[ "${1-}" == "targets-on" || "${1-}" == "targets-off" ]]; then
+        [[ "${1}" == "targets-on" ]] && targets=1
+        shift || true
+    fi
+    if [[ "${1-}" == "deps-on" || "${1-}" == "deps-off" ]]; then
+        [[ "${1}" == "deps-off" ]] && no_deps=1
+        shift || true
+    fi
+    if [[ "${1-}" == "all-on" || "${1-}" == "all-off" ]]; then
+        [[ "${1}" == "all-on" ]] && all=1
+        shift || true
+    fi
+
+    for a in "$@"; do
+
+        [[ "${a}" == "--" ]] && break
+
+        case "${a}" in
+            -p|--package|--package=*|--manifest-path|--manifest-path=*|--workspace|--all)
+                workspace=0
+            ;;
+        esac
+        case "${a}" in
+            -F|--features|--features=*|--no-default-features|--all-features)
+                features=0
+            ;;
+        esac
+        case "${a}" in
+            --lib|--bin|--bin=*|--bins|--example|--example=*|--examples|--test|--test=*|--tests|--bench|--bench=*|--benches|--all-targets)
+                targets=0
+            ;;
+        esac
+        case "${a}" in
+            --no-deps|--no-deps=*) no_deps=0 ;;
+        esac
+        case "${a}" in
+            --all|--all=*) all=0 ;;
+        esac
+
+    done
+
+    (( features )) && extra+=( --all-features )
+    (( targets )) && extra+=( --all-targets )
+    (( no_deps )) && extra+=( --no-deps )
+    (( all )) && extra+=( --all )
+
+    if (( ! workspace || all )); then
+        run_cargo "${command}" "${extra[@]}" "$@"
+        return 0
+    fi
+
+    local -a pkgs=()
+    local p=""
+
+    while IFS= read -r p; do [[ -n "${p}" ]] && pkgs+=( --package "${p}" ); done < <(publishable_pkgs)
+    (( ${#pkgs[@]} )) || die "No publishable workspace crates found" 2
+
+    run_cargo "${command}" "${pkgs[@]}" "${extra[@]}" "$@"
+
+}
+#!/usr/bin/env bash
+
+cmd_crate_help () {
+
+    info_ln "Crate :\n"
+
+    printf '    %s\n' \
+        "active                     * Show current active version" \
+        "stable                     * Show stable version" \
+        "nightly                    * Show nightly version" \
+        "msrv                       * Show msrv version" \
+        "" \
+        "list                       * List of installed cargo tools/crates" \
+        "install                    * Install crate/s" \
+        "uninstall                  * Uninstall crate/s" \
+        "install-update             * Install/Update cargo tool/s into latest version" \
+        "installed                  * Installed List of cargo tools" \
+        "show                       * Show <package/tool/crate> info, version if installed" \
+        "" \
+        "add                        * Add new crate/s into <--package *>" \
+        "remove                     * remove crate/s from <--package *>" \
+        "update                     * Update crate/s" \
+        "upgrade                    * Upgrade crate/s into latest version" \
+        "info                       * Information about <*crate-name*>" \
+        "search                     * Search in crates store <*crate-name*>" \
+        "" \
+        "new                        * Create a new crate and (optionally) add it to the workspace, for not publish add (--no-publish)" \
+        "build                      * Build the whole workspace, or a single crate if specified" \
+        "run                        * Run a binary (use -p/--package to pick a crate, or pass a bin name)" \
+        "clean                      * Clean Cargo" \
+        "clean-cache                * Clean cache ( cargo-ci-cache-clean )" \
+        "tree                       * Show list of cargo tree dependencies (cargo tree -e normal)" \
+        "tree-files                 * Show tree files structures of workspace (tree -a)" \
+        "has                        * Check if workspace/package has a spacific dependency" \
+        "expand                     * Expand crate code ( expand macros/derive )" \
+        "" \
+        "check                      * Run compile checks for all crates and targets (no binaries produced)" \
+        "test                       * Run the full test suite (workspace-wide or a single crate)" \
+        "bench                      * Run benchmarks (workspace-wide or a single crate)" \
+        "example                    * Run an example target by name, forwarding extra args after --" \
+        "" \
+        "doc-check                  * Check docs after build it strictly (workspace or single crate)" \
+        "doc-test                   * Test docs by Run documentation tests (doctests)" \
+        "doc-open                   * Open docs in your browser after build it" \
+        "doc-clean                  * Clean docs" \
+        ''
+
+}
+
+cmd_active () {
+
+    active_version
+
+}
+cmd_stable () {
+
+    stable_version
+
+}
+cmd_nightly () {
+
+    nightly_version
+
+}
+cmd_msrv () {
+
+    msrv_version
+
+}
+
+cmd_list () {
+
+    ensure cargo
+    run cargo --list "$@"
+
+}
+cmd_install () {
+
+    source <(parse "$@" -- :name:list)
+    run_cargo install "${name[@]}" "${kwargs[@]}"
+
+}
+cmd_uninstall () {
+
+    source <(parse "$@" -- :name:list)
+    run_cargo uninstall "${name[@]}" "${kwargs[@]}"
+
+}
+cmd_install_update () {
+
+    source <(parse "$@" -- :name:list="-a")
+    ensure cargo-update cargo-install-update
+    run_cargo install-update "${name[@]}" "${kwargs[@]}"
+
+}
+cmd_installed () {
+
+    run_cargo install --list "$@"
+
+}
+cmd_show () {
+
+    source <(parse "$@" -- :name:str)
+
+    local resolved="$(resolve_cmd "${name}")" || true
+    [[ -n "${resolved}" ]] || { error "${name}: Not found."; return 1; }
+
+    local -a cmd=()
+    read -r -a cmd <<< "${resolved}"
+
+    "${cmd[@]}" --version >/dev/null 2>&1 && { "${cmd[@]}" --version; return 0; }
+    "${cmd[@]}" -V        >/dev/null 2>&1 && { "${cmd[@]}" -V;        return 0; }
+    "${cmd[@]}" version   >/dev/null 2>&1 && { "${cmd[@]}" version;   return 0; }
+
+    success "${resolved}: Installed."
+    warn "${resolved}: can not detect version."
+
+    return 0
+
+}
+
+cmd_add () {
+
+    source <(parse "$@" -- :crate_name:list :package:str)
+    run_cargo add "${crate_name[@]}" --package "${package}" "${kwargs[@]}"
+
+}
+cmd_remove () {
+
+    source <(parse "$@" -- :crate_name:list :package:str)
+    run_cargo rm "${crate_name[@]}" --package "${package}" "${kwargs[@]}"
+
+}
+cmd_update () {
+
+    source <(parse "$@" -- crate_name:list)
+    run_cargo update "${crate_name[@]}" "${kwargs[@]}"
+
+}
+cmd_upgrade () {
+
+    source <(parse "$@" -- package:list)
+
+    local -a args=()
+    local p=""
+    for p in "${package[@]}"; do args+=( "--package" "${p}" ); done
+
+    run_cargo upgrade "${args[@]}" "${kwargs[@]}"
+
+}
+cmd_info () {
+
+    source <(parse "$@" -- :crate_name:list)
+    run_cargo info "${crate_name[@]}" "${kwargs[@]}"
+
+}
+cmd_search () {
+
+    run_cargo search "$@"
+
+}
+
+cmd_new () {
+
+    ensure perl
+    source <(parse "$@" -- :name:str dir:str="crates" kind:str="--lib" publish:bool=true workspace:bool=true )
+
+    local path="${dir}/${name}"
+
+    [[ -e "${path}" ]] && die "Crate already exists: ${path}" 2
+    [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "Invalid crate name: ${name}" 2
+
+    mkdir -p -- "${dir}" 2>/dev/null || true
+    run_cargo new --vcs none "${kind}" "${kwargs[@]}" "${path}"
+
+    local crate_toml="${path}/Cargo.toml"
+    [[ -f "${crate_toml}" ]] || die "Cargo.toml not found: ${crate_toml}" 2
+
+    if (( publish == 0 )); then
+
+        perl -i -ne '
+            our $nl;
+            $nl //= (/\r\n$/ ? "\r\n" : "\n");
+
+            our $in_pkg;
+            our $inserted;
+
+            if (/^\[package\]\s*\r?$/) {
+                $in_pkg = 1;
+                $inserted = 0;
+                print;
+                next;
+            }
+            if ($in_pkg) {
+
+                if (/^\[[^\]]+\]\s*\r?$/) {
+                    if (!$inserted) { print "publish = false$nl"; $inserted = 1; }
+                    $in_pkg = 0;
+                    print;
+                    next;
+                }
+                if (/^[ \t]*publish\s*=/) {
+                    next;
+                }
+                if (!$inserted && /^[ \t]*name\s*=/) {
+                    print;
+                    print "publish = false$nl";
+                    $inserted = 1;
+                    next;
+                }
+
+                print;
+                next;
+            }
+
+            print;
+
+            END {
+                if ($in_pkg && !$inserted) {
+                    print "publish = false$nl";
+                }
+            }
+        ' "${crate_toml}" || die "Failed to set publish=false in ${crate_toml}" 2
+
+    else
+
+        perl -i -ne '
+            our $nl;
+            $nl //= (/\r\n$/ ? "\r\n" : "\n");
+
+            our $in_pkg;
+            our $has_categories;
+            our $inserted;
+
+            if (/^\[package\]\s*\r?$/) {
+                $in_pkg = 1;
+                $has_categories = 0;
+                $inserted = 0;
+                print;
+                next;
+            }
+            if ($in_pkg) {
+
+                if (/^[ \t]*categories\s*=/) {
+                    $has_categories = 1;
+                    print;
+                    next;
+                }
+                if (/^\[[^\]]+\]\s*\r?$/) {
+                    if (!$has_categories && !$inserted) {
+                        print "categories = [\"development-tools\"]$nl";
+                        $inserted = 1;
+                    }
+                    $in_pkg = 0;
+                    print;
+                    next;
+                }
+                if (!$has_categories && !$inserted && /^[ \t]*name\s*=/) {
+                    print;
+                    print "categories = [\"development-tools\"]$nl";
+                    $inserted = 1;
+                    next;
+                }
+
+                print;
+                next;
+
+            }
+
+            print;
+
+            END {
+                if ($in_pkg && !$has_categories && !$inserted) {
+                    print "categories = [\"development-tools\"]$nl";
+                }
+            }
+        ' "${crate_toml}" || die "Failed to set default categories in ${crate_toml}" 2
+
+    fi
+
+    [[ ${workspace} -eq 1 ]] || return 0
+    [[ -f Cargo.toml ]] || return 0
+
+    grep -qF "\"${dir}/${name}\"" Cargo.toml 2>/dev/null && return 0
+
+    MEMBER="${dir}/${name}" perl -0777 -i -pe '
+        my $m = $ENV{MEMBER};
+        my $ws = qr/\[workspace\]/s;
+
+        if ($_ !~ $ws) { next; }
+
+        if ($_ =~ /members\s*=\s*\[(.*?)\]/s) {
+            my $block = $1;
+
+            if ($block !~ /\Q$m\E/s) {
+                s/(members\s*=\s*\[)(.*?)(\])/$1.$2."\n    \"$m\",\n".$3/se;
+            }
+        }
+        else {
+            s/(\[workspace\]\s*)/$1."members = [\n    \"$m\",\n]\n"/se;
+        }
+    ' Cargo.toml
+
+}
+cmd_build () {
+
+    source <(parse "$@" -- package:list)
+
+    local -a args=()
+    local pkg=""
+    for pkg in "${package[@]}"; do [[ -n "${pkg}" ]] && args+=( --package "${pkg}" ); done
+
+    run_workspace build "${args[@]}" "${kwargs[@]}"
+
+}
+cmd_run () {
+
+    source <(parse "$@" -- package bin)
+
+    local -a args=()
+
+    [[ -n "${package}" ]] && args+=( --package "${package}" )
+    [[ -n "${bin}" ]] && args+=( --bin "${bin}" )
+
+    run_cargo run "${args[@]}" "${kwargs[@]}"
+
+}
+cmd_clean () {
+
+    source <(parse "$@" -- package:list)
+
+    local -a args=()
+    local pkg=""
+    for pkg in "${package[@]}"; do [[ -n "${pkg}" ]] && args+=( --package "${pkg}" ); done
+
+    run_cargo clean "${args[@]}" "${kwargs[@]}"
+
+}
+cmd_clean_cache () {
+
+    run_cargo ci-cache-clean "$@"
+
+}
+cmd_tree () {
+
+    run_cargo tree "$@"
+
+}
+cmd_tree_files () {
+
+    run tree -a -I ".git|target|Cargo.lock"
+
+}
+cmd_has () {
+
+    source <(parse "$@" -- :keyword package:list p:list)
+
+    local -a args=()
+    local pkg=""
+
+    for pkg in "${package[@]}"; do args+=( --package "${pkg}" ); done
+    for pkg in "${p[@]}"; do args+=( --package "${pkg}" ); done
+
+    run_cargo tree "${args[@]}" "${kwargs[@]}" | grep -nF -- "${keyword}"
+
+}
+cmd_expand () {
+
+    source <(parse "$@" -- :package:list)
+
+    local -a args=()
+    local pkg=""
+
+    for pkg in "${package[@]}"; do
+        args+=( --package "${pkg}" )
+    done
+
+    run_cargo expand --nightly "${args[@]}" "${kwargs[@]}"
+
+}
+
+cmd_check () {
+
+    run_workspace check "$@"
+
+}
+cmd_test () {
+
+    if has cargo-nextest; then run_workspace nextest run "$@"
+    else run_workspace test "$@"
+    fi
+
+}
+cmd_bench () {
+
+    run_workspace bench features-on "$@"
+
+}
+cmd_example () {
+
+    source <(parse "$@" -- :name package p)
+
+    local -a args=()
+    package="${package:-${p:-}}"
+    [[ -n "${package}" ]] && args+=( -p "${package}" )
+
+    run_cargo run "${args[@]}" --example "${name}" "${kwargs[@]}"
+
+}
+
+cmd_doc_check () {
+
+    run_workspace doc features-on deps-off "$@"
+
+}
+cmd_doc_test () {
+
+    run_workspace test features-on --doc "$@"
+
+}
+cmd_doc_clean () {
+
+    remove_dir "${ROOT_DIR}/target/doc"
+
+}
+cmd_doc_open () {
+
+    run_workspace doc features-on deps-off "$@"
+
+    if [[ -f "${ROOT_DIR}/target/doc/index.html" ]]; then open_path "${ROOT_DIR}/target/doc/index.html"
+    else open_path "$(find "${ROOT_DIR}/target/doc" -maxdepth 2 -name index.html -print | head -n 1 || true)"
+    fi
+
+}
+#!/usr/bin/env bash
+
+doctor_pick_ver_line () {
+
+    local s="${1-}"
+    local line=""
+
+    while IFS= read -r line; do
+
+        line="${line//$'\r'/}"
+        line="${line#"${line%%[!$' \t']*}"}"
+        line="${line%"${line##*[!$' \t']}"}"
+
+        [[ -n "${line}" ]] || continue
+        [[ "${line}" =~ [0-9]+\.[0-9]+ ]] && { printf '%s' "${line}"; return 0; }
+
+    done <<< "${s}"
+
+    while IFS= read -r line; do
+
+        line="${line//$'\r'/}"
+        line="${line#"${line%%[!$' \t']*}"}"
+        line="${line%"${line##*[!$' \t']}"}"
+
+        [[ -n "${line}" ]] || continue
+        printf '%s' "${line}"
+        return 0
+
+    done <<< "${s}"
+
+    printf '%s' ""
+    return 0
+
+}
+doctor_ver () {
+
+    ensure head tr
+
+    local out="$( { "$@" --version 2>&1 || "$@" -V 2>&1 || "$@" version 2>&1 || true; } | head -n 6 | tr -d '\r' )"
+
+    out="$(doctor_pick_ver_line "${out}")"
+    [[ -n "${out}" ]] && { printf '%s' "${out}"; return 0; }
+
+    printf '%s' ""
+    return 0
+
+}
+doctor_status () {
+
+    local kind="${1:-ok}" name="${2:-}" msg="${3:-}"
+
+    case "${kind}" in
+        ok)
+            printf '  ✅ %-18s %s\n' "${name}" "${msg}"
+            ok=$(( ok + 1 ))
+        ;;
+        warn)
+            printf '  ⚠️ %-18s %s\n' "${name}" "${msg}"
+            warn=$(( warn + 1 ))
+        ;;
+        fail)
+            printf '  ❌ %-18s %s\n' "${name}" "${msg}"
+            fail=$(( fail + 1 ))
+        ;;
+        *)
+            printf '  ✅ %-18s %s\n' "${name}" "${msg}"
+            ok=$(( ok + 1 ))
+        ;;
+    esac
+
+}
+doctor_tool () {
+
+    local missing_kind="${1:-warn}"
+    local name="${2:-}"
+    local cmd="${3:-}"
+
+    shift 3 || true
+
+    if ! has "${cmd}"; then
+        doctor_status "${missing_kind}" "${name}" "missing"
+        return 0
+    fi
+
+    local v="$(doctor_ver "${cmd}" "$@")"
+
+    if [[ -z "${v}" ]]; then
+        doctor_status warn "${name}" "unknown"
+        return 0
+    fi
+    if [[ "${v}" == *"error:"* || "${v}" == *"fatal error:"* ]]; then
+        doctor_status warn "${name}" "${v}"
+        return 0
+    fi
+
+    doctor_status ok "${name}" "${v}"
+    return 0
+
+}
+doctor_cargo_sub () {
+
+    local label="${1:-}"
+    local sub="${2:-}"
+    local bin="${3:-}"
+
+    if ! has cargo; then
+        doctor_status fail "cargo" "missing"
+        return 0
+    fi
+    if ! has "${bin}"; then
+        doctor_status warn "${label}" "missing"
+        return 0
+    fi
+
+    local v="$(doctor_ver cargo "${sub}")"
+    [[ -n "${v}" ]] || { doctor_status warn "${label}" "unknown"; return 0; }
+
+    if [[ "${v}" == *"error:"* || "${v}" == *"fatal error:"* ]]; then
+        doctor_status warn "${label}" "${v}"
+        return 0
+    fi
+
+    doctor_status ok "${label}" "${v}"
+    return 0
+
+}
+doctor_has_component () {
+
+    ensure awk grep
+
+    local tc="${1:-}"
+    local comp_re="${2:-}"
+
+    rustup component list --toolchain "${tc}" --installed 2>/dev/null | awk '{print $1}' | grep -qE "${comp_re}"
+
+}
+doctor_toolchain_installed () {
+
+    ensure awk
+
+    local tc="${1:-}"
+    [[ -n "${tc}" ]] || return 1
+
+    rustup toolchain list 2>/dev/null \
+        | awk '{print $1}' \
+        | awk -v tc="${tc}" '
+            $0 == tc { found=1 }
+            index($0, tc "-") == 1 { found=1 }
+            END { exit(found ? 0 : 1) }
+        '
+
+}
+doctor_toolchain () {
+
+    local name="${1:-}"
+    local tc="${2:-}"
+
+    [[ -n "${tc}" ]] || { doctor_status warn "${name}" "unknown"; return 0; }
+
+    if doctor_toolchain_installed "${tc}"; then
+        doctor_status ok "${name}" "${tc}"
+        return 0
+    fi
+
+    doctor_status warn "${name}" "missing (${tc})"
+    return 0
+
+}
+doctor_sys () {
+
+    ensure awk grep
+
+    local distro="unknown" wsl="No" ci="No" shell="${SHELL:-unknown}"
+
+    is_ci && ci="Yes"
+
+    local os="$(uname -s 2>/dev/null || printf '%s' unknown)"
+    local kernel="$(uname -r 2>/dev/null || printf '%s' unknown)"
+    local arch="$(uname -m 2>/dev/null || printf '%s' unknown)"
+
+    if [[ -r /etc/os-release ]]; then
+        distro="$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}")"
+    elif [[ "${os}" == "Darwin" ]]; then
+        distro="macOS"
+    elif [[ "${os}" == MINGW* || "${os}" == MSYS* || "${os}" == CYGWIN* ]]; then
+        distro="Windows (Git Bash)"
+    fi
+
+    if [[ -n "${WSL_INTEROP:-}" || -n "${WSL_DISTRO_NAME:-}" ]]; then
+        wsl="Yes"
+    elif [[ -r /proc/version ]] && grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+        wsl="Yes"
+    fi
+
+    local cpu="" cores="unknown" mem="unknown" disk="unknown"
+
+    if has lscpu; then
+        cpu="$(lscpu 2>/dev/null | awk -F: '/Model name/ { sub(/^[ \t]+/,"",$2); print $2; exit }' || true)"
+    fi
+    if [[ -z "${cpu}" && -r /proc/cpuinfo ]]; then
+        cpu="$(awk -F: '/model name/ { sub(/^[ \t]+/,"",$2); print $2; exit }' /proc/cpuinfo 2>/dev/null || true)"
+    fi
+    if [[ -z "${cpu}" && "${os}" == "Darwin" ]] && has sysctl; then
+        cpu="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"
+    fi
+    [[ -n "${cpu}" ]] || cpu="unknown"
+
+    if has nproc; then
+        cores="$(nproc 2>/dev/null || printf '%s' unknown)"
+    elif has getconf; then
+        cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '%s' unknown)"
+    elif [[ "${os}" == "Darwin" ]] && has sysctl; then
+        cores="$(sysctl -n hw.ncpu 2>/dev/null || printf '%s' unknown)"
+    fi
+
+    if has free; then
+        mem="$(free -h 2>/dev/null | awk '/^Mem:/ { print $2 " total, " $7 " avail"; exit }' || true)"
+    elif [[ "${os}" == "Darwin" ]] && has sysctl; then
+        local mem_bytes="0"
+        mem_bytes="$(sysctl -n hw.memsize 2>/dev/null || true)"
+        [[ "${mem_bytes}" =~ ^[0-9]+$ ]] && mem="$(( mem_bytes / 1024 / 1024 ))Mi total"
+    fi
+    [[ -n "${mem}" ]] || mem="unknown"
+
+    disk="$(LC_ALL=C df -hP . 2>/dev/null | awk 'NR==2 { print $4 " free of " $2 " (" $5 " used)"; exit }' || true)"
+    [[ -n "${disk}" ]] || disk="unknown"
+
+    info_ln '==> OS \n'
+
+    doctor_status ok "OS" "${os}"
+    doctor_status ok "Distro" "${distro}"
+    doctor_status ok "Kernel" "${kernel}"
+    doctor_status ok "Disk" "${disk}"
+    doctor_status ok "CPU" "${cpu}"
+    doctor_status ok "Memory" "${mem}"
+    doctor_status ok "Shell" "${shell}"
+    doctor_status ok "Cores" "${cores}"
+    doctor_status ok "Arch" "${arch}"
+    doctor_status ok "WSL" "${wsl}"
+    doctor_status ok "CI" "${ci}"
+
+}
+doctor_github () {
+
+    info_ln '==> Github \n'
+
+    local root="$(pwd -P 2>/dev/null || pwd 2>/dev/null || printf '%s' '.')"
+
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+
+        local has_commit=0 branch="unknown" head="unknown" dirty="n/a" origin="missing"
+
+        root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${root}")"
+
+        origin="$(git remote get-url origin 2>/dev/null || true)"
+        [[ -n "${origin}" ]] || origin="$(git remote get-url upstream 2>/dev/null || true)"
+
+        if git rev-parse --verify HEAD >/dev/null 2>&1; then has_commit=1; fi
+
+        if (( has_commit )); then
+            branch="$(git symbolic-ref -q --short HEAD 2>/dev/null || true)"
+            [[ -n "${branch}" ]] || branch="detached"
+        else
+            branch="unborn"
+        fi
+
+        if (( has_commit )); then head="$(git rev-parse --short HEAD 2>/dev/null || printf '%s' unknown)"
+        else head="none"
+        fi
+
+        if (( has_commit )); then
+            dirty="dirty"
+            if git diff --quiet 2>/dev/null && git diff --cached --quiet 2>/dev/null; then dirty="clean"; fi
+        else
+            dirty="unborn"
+        fi
+
+        doctor_status ok "Root" "${root}"
+        [[ -n "${origin}" ]] && doctor_status ok "Origin" "${origin}" || doctor_status warn "Origin" "missing"
+        [[ "${branch}" == "unknown" || "${branch}" == "unborn" || "${branch}" == "detached" ]] && doctor_status warn "Branch" "${branch}" || doctor_status ok "Branch" "${branch}"
+        [[ "${head}" == "unknown" || "${head}" == "none" ]] && doctor_status warn "Commit" "${head}" || doctor_status ok "Commit" "${head}"
+        [[ "${dirty}" == "clean" ]] && doctor_status ok "Status" "${dirty}" || doctor_status warn "Status" "${dirty}"
+
+    else
+        doctor_status ok   "Root"   "${root}"
+        doctor_status warn "Origin" "missing"
+        doctor_status warn "Branch" "none"
+        doctor_status warn "Commit" "none"
+        doctor_status warn "Status" "n/a"
+    fi
+
+}
+doctor_tools () {
+
+    info_ln '==> Tools \n'
+
+    doctor_tool warn "git" git
+    doctor_tool warn "gh" gh
+    doctor_tool warn "rustup" rustup
+    doctor_tool warn "rustc" rustc
+    doctor_tool warn "cargo" cargo
+    doctor_tool warn "clang" clang
+    doctor_tool warn "llvm" llvm-config
+    doctor_tool warn "node" node
+    doctor_tool warn "npx" npx
+    doctor_tool warn "npm" npm
+
+}
+doctor_rust () {
+
+    ensure awk wc tr
+    info_ln '==> Rust \n'
+
+    if ! has rustup; then
+        doctor_status fail "rustup" "missing"
+        return 0
+    fi
+    if ! has cargo; then
+        doctor_status fail "cargo" "missing"
+        return 0
+    fi
+
+    [[ -n "${RUSTFLAGS:-}" ]] && doctor_status ok "RUSTFLAGS" "${RUSTFLAGS}" || doctor_status ok "RUSTFLAGS" "--"
+    [[ -n "${RUST_BACKTRACE:-}" ]] && doctor_status ok "RUST_BACKTRACE" "${RUST_BACKTRACE}" || doctor_status ok "RUST_BACKTRACE" "--"
+
+    local active_tc="$(rustup show active-toolchain 2>/dev/null | awk '{print $1}' || true)"
+    [[ -n "${active_tc}" ]] && doctor_status ok "active" "${active_tc}" || doctor_status warn "active" "unknown"
+
+    local stable_tc="$(stable_version 2>/dev/null || true)"
+    local nightly_tc="$(nightly_version 2>/dev/null || true)"
+    local msrv_tc="$(msrv_version 2>/dev/null || true)"
+
+    [[ -n "${stable_tc}" ]] || stable_tc="${RUST_STABLE:-stable}"
+    [[ -n "${nightly_tc}" ]] || nightly_tc="${RUST_NIGHTLY:-nightly}"
+
+    doctor_toolchain "stable" "${stable_tc}"
+    doctor_toolchain "nightly" "${nightly_tc}"
+    [[ -n "${msrv_tc}" ]] && doctor_toolchain "msrv" "${msrv_tc}" || doctor_status warn "msrv" "--"
+
+    echo
+
+    if doctor_has_component "${active_tc}" '^(llvm-tools|llvm-tools-preview)($|-)'; then
+
+        local sysroot="$(rustup run "${active_tc}" rustc --print sysroot 2>/dev/null || true)"
+        local host="$(rustup run "${active_tc}" rustc -vV 2>/dev/null | awk '/^host: / { print $2; exit }' || true)"
+        local bin="${sysroot}/lib/rustlib/${host}/bin/llvm-cov"
+
+        [[ -x "${bin}" ]] || bin="${bin}.exe"
+
+        if [[ -x "${bin}" ]]; then
+            local v="$( { "${bin}" --version 2>&1 || true; } | head -n 6 | tr -d '\r' )"
+            v="$(doctor_pick_ver_line "${v}")"
+            [[ -n "${v}" ]] && doctor_status ok "llvm-tools" "${v}" || doctor_status warn "llvm-tools" "unknown"
+        else
+            doctor_status warn "llvm-tools" "unknown"
+        fi
+
+    else
+        doctor_status warn "llvm-tools" "missing"
+    fi
+
+    if doctor_toolchain_installed "${nightly_tc}" && doctor_has_component "${nightly_tc}" '^miri($|-)'; then doctor_tool warn "miri" cargo "+${nightly_tc}" miri
+    else doctor_status warn "miri" "missing"
+    fi
+
+    if doctor_has_component "${active_tc}" '^rustfmt($|-)'; then doctor_tool warn "rustfmt" rustup run "${active_tc}" rustfmt
+    else doctor_status warn "rustfmt" "missing"
+    fi
+
+    if doctor_has_component "${active_tc}" '^clippy($|-)'; then doctor_tool warn "clippy" rustup run "${active_tc}" clippy-driver
+    else doctor_status warn "clippy" "missing"
+    fi
+
+    doctor_tool warn taplo taplo
+    doctor_tool warn samply samply
+    echo
+
+    doctor_cargo_sub "binstall"         "binstall"       "cargo-binstall"
+    doctor_cargo_sub "nextest"          "nextest"        "cargo-nextest"
+    doctor_cargo_sub "llvm-cov"         "llvm-cov"       "cargo-llvm-cov"
+    doctor_cargo_sub "flamegraph"       "flamegraph"     "cargo-flamegraph"
+    echo
+    doctor_cargo_sub "cargo-deny"       "deny"           "cargo-deny"
+    doctor_cargo_sub "cargo-audit"      "audit"          "cargo-audit"
+    doctor_cargo_sub "cargo-semver"     "semver-checks"  "cargo-semver-checks"
+    doctor_cargo_sub "cargo-spellcheck" "spellcheck"     "cargo-spellcheck"
+    doctor_cargo_sub "cargo-hack"       "hack"           "cargo-hack"
+    doctor_cargo_sub "cargo-fuzz"       "fuzz"           "cargo-fuzz"
+    doctor_cargo_sub "cargo-udeps"      "udeps"          "cargo-udeps"
+    doctor_cargo_sub "cargo-bloat"      "bloat"          "cargo-bloat"
+    doctor_cargo_sub "cargo-vet"        "vet"            "cargo-vet"
+    doctor_cargo_sub "cargo-upgrade"    "upgrade"        "cargo-upgrade"
+
+
+}
+doctor_summary () {
+
+    info_ln '==> Summary \n'
+
+    printf '  ✅ %-18s %s\n' "OK"   "( ${ok} )"
+    printf '  ⚠️ %-18s %s\n' "Warn" "( ${warn} )"
+    printf '  ❌ %-18s %s\n' "Fail" "( ${fail} )"
+
+    local face="" msg="" idx=0
+    local -a msgs=()
+
+    if (( fail > 0 )); then msg="😡 This isn't a pipeline… it's a crime scene !"
+    elif (( warn == 0 )); then msg="😎 All is awsome 💯"
+    elif (( warn == 1 )); then msg="😉 One tiny crack ☕"
+    elif (( warn == 2 )); then msg="😮‍💨 Two warnings. Still fine ⚠️"
+    else msg="😨 Too many warnings !"
+    fi
+
+    printf '  %s %-18s %s\n\n' "🤔" "Status" "( ${msg} )"
+
+}
+
+cmd_doctor_help () {
+
+    info_ln "Doctor :\n"
+
+    printf '    %s\n' \
+        "doctor                     * Summery of (system + tools + git) full diagnostics" \
+        "ensure                     * Ensure all used tools/crates installed" \
+        ''
+
+}
+cmd_ensure () {
+
+    source <(parse "$@" -- cmd:list)
+
+    info_ln "Ensure Tools ...\n"
+
+    ensure cargo node python git clang jq perl grep curl awk tail sed sort head wc xargs find
+
+    for c in "${cmd[@]:-all}"; do
+        [[ "${c}" == "all" || "${c}" == "sanitizer" ]]  && ensure rust-src
+        [[ "${c}" == "all" || "${c}" == "miri" ]]       && ensure miri
+        [[ "${c}" == "all" || "${c}" == "fmt" ]]        && ensure rustfmt
+        [[ "${c}" == "all" || "${c}" == "clippy" ]]     && ensure clippy
+        [[ "${c}" == "all" || "${c}" == "taplo" ]]      && ensure taplo
+        [[ "${c}" == "all" || "${c}" == "samply" ]]     && ensure samply
+        [[ "${c}" == "all" || "${c}" == "flame" ]]      && ensure flamegraph
+        [[ "${c}" == "all" || "${c}" == "audit" ]]      && ensure cargo-audit
+        [[ "${c}" == "all" || "${c}" == "deny" ]]       && ensure cargo-deny
+        [[ "${c}" == "all" || "${c}" == "nextest" ]]    && ensure cargo-nextest
+        [[ "${c}" == "all" || "${c}" == "semver" ]]     && ensure cargo-semver-checks
+        [[ "${c}" == "all" || "${c}" == "edit" ]]       && ensure cargo-edit
+        [[ "${c}" == "all" || "${c}" == "hack" ]]       && ensure cargo-hack
+        [[ "${c}" == "all" || "${c}" == "fuzz" ]]       && ensure cargo-fuzz
+        [[ "${c}" == "all" || "${c}" == "udeps" ]]      && ensure cargo-udeps
+        [[ "${c}" == "all" || "${c}" == "bloat" ]]      && ensure cargo-bloat
+        [[ "${c}" == "all" || "${c}" == "vet" ]]        && ensure cargo-vet
+        [[ "${c}" == "all" || "${c}" == "cov" ]]        && ensure llvm-tools-preview cargo-llvm-cov
+        [[ "${c}" == "all" || "${c}" == "spell" ]]      && ensure libclang-dev llvm-config hunspell cargo-spellcheck
+    done
+
+    success_ln "Tools Installed\n"
+
+}
+cmd_doctor () {
+
+    local ok=0 warn=0 fail=0
+
+    doctor_sys
+    doctor_github
+    doctor_tools
+    doctor_rust
+    doctor_summary
+
+    (( fail == 0 )) || return 1
+    return 0
+
+}
+
+ENSURE_TOOLS=1
+
+cmd_gates_help () {
+
+    info_ln "CI Gates :\n"
+
+    printf '    %s\n' \
+        "ci-stable                  * CI stable (check + test) no-default-features + all-features + release" \
+        "ci-nightly                 * CI nightly (check + test) no-default-features + all-features + release" \
+        "ci-msrv                    * CI msrv (check + test) no-default-features + all-features + release" \
+        "" \
+        "ci-doc                     * CI docs (doc-check + doc-test)" \
+        "ci-bench                   * CI benches (check --benches)" \
+        "ci-example                 * CI examples (check --examples)" \
+        "ci-panic                   * CI panic=abort (nightly + all-features)" \
+        "" \
+        "ci-fmt                     * CI format (fmt-check)" \
+        "ci-safety                  * CI lint (taplo + prettier + spellcheck)" \
+        "ci-lint                    * CI clippy check (cargo-clippy)" \
+        "" \
+        "ci-audit                   * CI audit (cargo-audit/deny)" \
+        "ci-vet                     * CI vet (cargo-vet)" \
+        "ci-hack                    * CI hack (cargo-hack)" \
+        "ci-udeps                   * CI udeps (cargo-udeps)" \
+        "ci-bloat                   * CI bloat (cargo-bloat)" \
+        "" \
+        "ci-fuzz                    * CI fuzz (runs targets with timeout & corpus)" \
+        "ci-sanitizer               * CI sanitizer detect UB" \
+        "ci-miri                    * CI miri detect UB / unsafe issues" \
+        "" \
+        "ci-semver                  * CI Semver (check semver)" \
+        "ci-coverage                * CI coverage (llvm-cov)" \
+        "" \
+        "ci-publish                 * CI publish gate then publish (full checks + publish)" \
+        "" \
+        "ci-local                   * Run a pipeline simulation ( full previous ci-xxx features )" \
+        ''
+
+}
+
+cmd_ci_stable () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure nextest
+
+    info_ln "Check Stable ...\n"
+
+    cmd_check "$@"
+    cmd_check --no-default-features "$@"
+    cmd_check --all-features "$@"
+    cmd_check --release "$@"
+
+    info_ln "Test Stable ...\n"
+
+    cmd_test "$@"
+    cmd_test --no-default-features "$@"
+    cmd_test --all-features "$@"
+    cmd_test --release "$@"
+
+    success_ln "CI Stable Succeeded.\n"
+
+}
+cmd_ci_nightly () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure nextest
+
+    info_ln "Check Nightly ...\n"
+
+    cmd_check --nightly "$@"
+    cmd_check --nightly --no-default-features "$@"
+    cmd_check --nightly --all-features "$@"
+    cmd_check --nightly --release "$@"
+
+    info_ln "Test Nightly ...\n"
+
+    cmd_test --nightly "$@"
+    cmd_test --nightly --no-default-features "$@"
+    cmd_test --nightly --all-features "$@"
+    cmd_test --nightly --release "$@"
+
+    success_ln "CI Nightly Succeeded.\n"
+
+}
+cmd_ci_msrv () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure nextest
+
+    info_ln "Check Msrv ...\n"
+
+    cmd_check --msrv "$@"
+    cmd_check --msrv --no-default-features "$@"
+    cmd_check --msrv --all-features "$@"
+    cmd_check --msrv --release "$@"
+
+    info_ln "Test Msrv ...\n"
+
+    cmd_test --msrv "$@"
+    cmd_test --msrv --no-default-features "$@"
+    cmd_test --msrv --all-features "$@"
+    cmd_test --msrv --release "$@"
+
+    success_ln "CI Msrv Succeeded.\n"
+
+}
+
+cmd_ci_doc () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure nextest
+
+    info_ln "Check Doc ...\n"
+    cmd_doc_check "$@"
+
+    info_ln "Test Doc ...\n"
+    cmd_doc_test "$@"
+
+    success_ln "CI Doc Succeeded.\n"
+
+}
+cmd_ci_bench () {
+
+    info_ln "Check Benches ...\n"
+    cmd_check --benches "$@"
+
+    success_ln "CI Bench Succeeded.\n"
+
+}
+cmd_ci_example () {
+
+    info_ln "Check Examples ...\n"
+    cmd_check --examples "$@"
+
+    success_ln "CI Example Succeeded.\n"
+
+}
+cmd_ci_panic () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure nextest
+
+    info_ln "Panic ...\n"
+    RUSTFLAGS="${RUSTFLAGS:-} -C panic=abort -Zpanic-abort-tests" cmd_test --nightly --all-features "$@"
+
+    success_ln "CI Panic Succeeded.\n"
+
+}
+
+cmd_ci_fmt () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure fmt
+
+    info_ln "Format ...\n"
+    cmd_fmt_check "$@"
+
+    success_ln "CI Format Succeeded.\n"
+
+}
+cmd_ci_lint () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure taplo spell
+
+    info_ln "Taplo ...\n"
+    cmd_taplo_check "$@"
+
+    info_ln "Prettier ...\n"
+    cmd_prettier_check "$@"
+
+    info_ln "Spellcheck ...\n"
+    cmd_spell_check "$@"
+
+    success_ln "CI Lint Succeeded.\n"
+
+}
+cmd_ci_clippy () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure clippy
+
+    info_ln "Clippy ...\n"
+    cmd_clippy "$@"
+
+    success_ln "CI Clippy Succeeded.\n"
+
+}
+
+cmd_ci_audit () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure audit deny
+
+    info_ln "Audit ...\n"
+    cmd_audit_check "$@"
+
+    success_ln "CI Audit Succeeded.\n"
+
+}
+cmd_ci_vet () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure vet
+
+    info_ln "Vet ...\n"
+    cmd_vet_check "$@"
+
+    success_ln "CI Vet Succeeded.\n"
+
+}
+cmd_ci_hack () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure hack
+
+    info_ln "Hack ...\n"
+    cmd_hack "$@"
+
+    success_ln "CI Hack Succeeded.\n"
+
+}
+cmd_ci_udeps () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure udeps
+
+    info_ln "Udeps ...\n"
+    cmd_udeps "$@"
+
+    success_ln "CI Udeps Succeeded.\n"
+
+}
+cmd_ci_bloat () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure bloat
+
+    info_ln "Bloat ...\n"
+    cmd_bloat "$@"
+
+    success_ln "CI Bloat Succeeded.\n"
+
+}
+
+cmd_ci_sanitizer () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure sanitizer
+
+    info_ln "Sanitizer ...\n"
+
+    cmd_sanitizer asan "$@"
+    cmd_sanitizer tsan "$@"
+    cmd_sanitizer lsan "$@"
+    cmd_sanitizer msan "$@"
+
+    success_ln "CI Sanitizer Succeeded.\n"
+
+}
+cmd_ci_fuzz () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure fuzz
+
+    info_ln "Fuzz ...\n"
+    cmd_fuzz "$@"
+
+    success_ln "CI Fuzz Succeeded.\n"
+
+}
+cmd_ci_miri () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure miri
+
+    info_ln "Miri ...\n"
+    cmd_miri "$@"
+
+    success_ln "CI Miri Succeeded.\n"
+
+}
+
+cmd_ci_semver () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure semver
+
+    info_ln "Semver ...\n"
+    cmd_semver "$@"
+
+    success_ln "CI Semver Succeeded.\n"
+
+}
+cmd_ci_coverage () {
+
+    (( ENSURE_TOOLS )) && cmd_ensure cov
+
+    info_ln "Coverage ...\n"
+    cmd_coverage --upload "$@"
+
+    success_ln "CI Coverage Succeeded.\n"
+
+}
+cmd_ci_publish () {
+
+    info_ln "Publish ...\n"
+    # cmd_publish "$@"
+
+    success_ln "CI Publish Succeeded.\n"
+
+}
+
+cmd_ci_local () {
+
+    ENSURE_TOOLS=0
+
+    cmd_ensure
+
+    cmd_ci_stable
+    cmd_ci_nightly
+    cmd_ci_msrv
+
+    cmd_ci_doc
+    cmd_ci_bench
+    cmd_ci_example
+    cmd_ci_panic
+
+    cmd_ci_fmt
+    cmd_ci_lint
+    cmd_ci_clippy
+
+    cmd_ci_audit
+    cmd_ci_vet
+    cmd_ci_hack
+    cmd_ci_udeps
+    cmd_ci_bloat
+
+    cmd_ci_sanitizer
+    cmd_ci_miri
+    cmd_ci_fuzz
+
+    cmd_ci_semver
+
+    cmd_ci_coverage --no-upload
+    cmd_ci_publish --dry-run
+
+    success_ln "CI Pipeline Succeeded.\n"
+
+}
+#!/usr/bin/env bash
+
+cmd_meta_help () {
+
+    info_ln "Meta :\n"
+
+    printf '    %s\n' \
+        "version                    * Show root Cargo.toml version" \
+        "meta                       * Show workspace metadata (members, names, packages, publishable set)" \
+        ""\
+        "is-publishable             * Check if <crate-name> is publishable or not" \
+        "is-published               * Check if <crate-name> is published or not" \
+        "can-publish                * Check if workspace or -p/--package available to publish now or not" \
+        ""\
+        "publish                    * Publish crates in dependency order (workspace publish)" \
+        "yank                       * Yank a published version (or undo yank)" \
+        ''
+
+}
+
+cmd_version () {
+
+    ensure jq
+
+    local name="${1:-}"
+    local meta="$(run_cargo metadata --no-deps --format-version 1)" || die "Error: failed to read cargo metadata." 2
+
+    if [[ -z "${name}" ]]; then
+
+        local ws_root="$(jq -r '.workspace_root' <<<"${meta}")"
+        local root_manifest="${ws_root}/Cargo.toml"
+
+        local v="$(jq -r --arg m "${root_manifest}" '.packages[] | select(.manifest_path == $m) | .version' <<<"${meta}" 2>/dev/null || true)"
+
+        if [[ -z "${v}" || "${v}" == "null" ]]; then
+
+            local id="$(jq -r '.workspace_members[0]' <<<"${meta}")"
+            v="$(jq -r --arg id "${id}" '.packages[] | select(.id == $id) | .version' <<<"${meta}")"
+
+        fi
+
+        [[ -n "${v}" && "${v}" != "null" ]] || die "Error: workspace version not found." 2
+
+        printf '%s\n' "${v}"
+        return 0
+
+    fi
+
+    local v="$(jq -r --arg n "${name}" '.packages[] | select(.name == $n) | .version' <<<"${meta}" 2>/dev/null | head -n 1)"
+
+    [[ -n "${v}" && "${v}" != "null" ]] || die "Error: package ${name} not found." 2
+    printf '%s\n' "${v}"
+
+}
+cmd_meta () {
+
+    ensure jq tee
+
+    local full=0
+    local mode="pretty"
+    local package=""
+    local out=""
+    local jq_color=0
+    local jq_compact=0
+    local only_published=0
+    local members_names=0
+    local registries=()
+    local registries_set=0
+
+    while [[ $# -gt 0 ]]; do
+        case "${1}" in
+            --full)
+                full=1
+                shift || true
+            ;;
+            --no-deps)
+                full=0
+                shift || true
+            ;;
+            -p|--package)
+                shift || true
+                package="${1:-}"
+                [[ -n "${package}" ]] || die "Error: -p/--package requires a value" 2
+                shift || true
+            ;;
+            --members)
+                mode="members"
+                shift || true
+            ;;
+            --names)
+                mode="members"
+                members_names=1
+                shift || true
+            ;;
+            --packages)
+                mode="packages"
+                shift || true
+            ;;
+            --only-publishable)
+                only_published=1
+                shift || true
+            ;;
+            --registries|--registry)
+                shift || true
+                local raw="${1:-}"
+                [[ -n "${raw}" ]] || die "Error: --registries requires a value" 2
+                shift || true
+
+                registries_set=1
+
+                local tmp="${raw// /}"
+                local parts=()
+                local old_ifs="${IFS}"
+
+                IFS=',' read -r -a parts <<< "${tmp}"
+                IFS="${old_ifs}"
+
+                local p=""
+                for p in "${parts[@]}"; do
+                    [[ -n "${p}" ]] || continue
+                    registries+=( "${p}" )
+                done
+            ;;
+            --compact|-c)
+                jq_compact=1
+                shift || true
+            ;;
+            --color|-C)
+                jq_color=1
+                shift || true
+            ;;
+            --out)
+                shift || true
+                out="${1:-}"
+                [[ -n "${out}" ]] || die "Error: --out requires a value" 2
+                shift || true
+            ;;
+            --)
+                shift || true
+                break
+            ;;
+            *)
+                break
+            ;;
+        esac
+    done
+
+    if [[ -n "${package}" && "${mode}" == "members" ]]; then
+        die "Error: -p/--package cannot be used with --members/--names" 2
+    fi
+    if (( registries_set )); then
+        only_published=1
+    fi
+    if (( only_published )) && (( registries_set == 0 )); then
+        registries=( "crates-io" )
+    fi
+
+    local cargo_args=( --format-version=1 )
+    local jq_args=()
+
+    (( full )) || cargo_args+=( --no-deps )
+    (( jq_compact )) && jq_args+=( -c )
+    (( jq_color )) && jq_args+=( -C )
+
+    local jq_prelude=""
+    local publishable_filter=""
+    local regs_json="[]"
+    local filter="."
+    local base_ws_local='
+        . as $m
+        | ($m.workspace_members) as $ws
+        | $m.packages[]
+        | select(.id as $id | $ws | index($id) != null)
+        | select(.source == null)
+    '
+
+    if (( only_published )); then
+
+        regs_json="$(printf '%s\n' "${registries[@]}" | jq -Rn '[inputs]')"
+        jq_args+=( --argjson regs "${regs_json}" )
+
+        jq_prelude='
+            def publish_allows:
+                if .publish == null then
+                    true
+                elif .publish == false then
+                    false
+                elif (.publish | type) != "array" then
+                    false
+                elif (.publish | length) == 0 then
+                    false
+                elif ($regs | index("*")) != null then
+                    true
+                else
+                    (.publish | any(. as $r | $regs | index($r) != null))
+                end;
+        '
+
+        publishable_filter='
+            | select(publish_allows)
+        '
+
+    fi
+
+    if [[ -n "${package}" ]]; then
+
+        jq_args+=( --arg p "${package}" )
+
+        if (( only_published )); then
+            filter="${jq_prelude}${base_ws_local}${publishable_filter} | select(.name == \$p)"
+        else
+            filter=".packages[] | select(.name == \$p)"
+        fi
+
+    else
+
+        local stream=""
+
+        if (( only_published )); then
+            stream="${jq_prelude}${base_ws_local}${publishable_filter}"
+        else
+            stream=".packages[]"
+        fi
+
+        case "${mode}" in
+
+            members)
+                jq_args+=( -r )
+                if (( members_names )); then
+                    filter="${stream} | .name"
+                else
+                    filter="${stream} | .id"
+                fi
+            ;;
+            packages)
+                filter="${stream} | {name, version, publish, manifest_path}"
+            ;;
+            *)
+                filter="${stream}"
+            ;;
+
+        esac
+
+    fi
+
+    if [[ -n "${out}" ]]; then
+        run_cargo metadata "${cargo_args[@]}" | tee "${out}" | jq "${jq_args[@]}" "${filter}"
+        return 0
+    fi
+
+    run_cargo metadata "${cargo_args[@]}" | jq "${jq_args[@]}" "${filter}"
+
+}
+
+cmd_is_publishable () {
+
+    ensure grep tr
+    source <(parse "$@" -- :name)
+
+    local needle="$(printf '%s' "${name}" | tr '[:upper:]' '[:lower:]')"
+
+    if publishable_pkgs | tr '[:upper:]' '[:lower:]' | grep -Fxq -- "${needle}"; then
+        printf '%s\n' "yes"
+        return 0
+    fi
+
+    printf '%s\n' "no"
+    return 1
+
+}
+cmd_is_published () {
+
+    ensure grep curl
+    source <(parse "$@" -- :name)
+
+    [[ "$(cmd_is_publishable "${name}")" == "yes" ]] || die "Error: package ${name} is not publishable." 2
+
+    local version="$(cmd_version "${name}")"
+    local name_lc="${name,,}"
+    local n="${#name_lc}"
+    local path=""
+
+    if (( n == 1 )); then path="1/${name_lc}"
+    elif (( n == 2 )); then path="2/${name_lc}"
+    elif (( n == 3 )); then path="3/${name_lc:0:1}/${name_lc}"
+    else path="${name_lc:0:2}/${name_lc:2:2}/${name_lc}"; fi
+
+    local tmp="$(mktemp "${TMPDIR:-/tmp}/rust.XXXXXX" 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/rust.$$")"
+    trap 'rm -f -- "${tmp}" 2>/dev/null || true; trap - RETURN' RETURN
+
+    local code="$(curl -sSL --connect-timeout 5 --max-time 20 -o "${tmp}" -w '%{http_code}' "https://index.crates.io/${path}" 2>/dev/null || true)"
+    [[ "${code}" =~ ^[0-9]{3}$ ]] || die "Error: crates.io request failed (network?)" 2
+
+    if [[ "${code}" == "404" ]]; then
+        echo "no"
+        return 0
+    fi
+    if [[ "${code}" != "200" ]]; then
+        die "Error: crates.io index request failed for ${name} (HTTP ${code})." 2
+    fi
+    if grep -Fq "\"vers\":\"${version}\"" "${tmp}"; then
+        echo "yes"
+        return 0
+    fi
+
+    echo "no"
+
+}
+cmd_can_publish () {
+
+    source <(parse "$@" -- name)
+
+    if [[ -n "${name}" ]]; then
+
+        [[ "$(cmd_is_published "${name}")" == "yes" ]] && { echo "no"; return 0; }
+
+        echo "yes"
+        return 0
+
+    fi
+
+    local p=""
+    local -a pkgs=()
+
+    while IFS= read -r line; do pkgs+=( "${line}" ); done < <(publishable_pkgs)
+    [[ ${#pkgs[@]} -gt 0 ]] || { echo "no"; return 0; }
+
+    for p in "${pkgs[@]}"; do
+        [[ "$(cmd_is_published "${p}")" == "yes" ]] && { echo "no"; return 0; }
+    done
+
+    echo "yes"
+
+}
+cmd_publish () {
+
+    source <(parse "$@" -- token allow_dirty:bool dry_run:bool package:list)
+
+    local old_token="" old_token_set=0 xtrace=0 i=0 p=""
+    local -a cargo_args=()
+
+    token="${token:-${CARGO_REGISTRY_TOKEN-}}"
+
+    [[ -n "${token}" ]] || die "Missing registry token. Use --token or set CARGO_REGISTRY_TOKEN." 2
+    [[ "${token}" =~ [[:space:]] ]] && die "Invalid token: ${token}." 2
+
+    (( dry_run )) && cargo_args+=( --dry-run )
+
+    if is_ci && ! is_ci_push; then
+        die "Refusing publish in CI." 2
+    fi
+    if (( ! allow_dirty )) && has git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+
+        if [[ -n "$(git status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+            die "Refusing publish with a dirty git working tree. Commit/stash changes, or pass --allow-dirty." 2
+        fi
+
+    fi
+    if (( ! dry_run )) && ! is_ci; then
+
+        local msg="About to publish "
+
+        if [[ ${#package[@]} -gt 0 ]]; then
+            msg+="package(s): ${package[*]}"
+        else
+            msg+="workspace"
+        fi
+
+        confirm "${msg}. Continue?" || die "Aborted." 1
+
+    fi
+    if [[ -n "${CARGO_REGISTRY_TOKEN+x}" ]]; then
+
+        old_token_set=1
+        old_token="${CARGO_REGISTRY_TOKEN}"
+
+    fi
+    if [[ -n "${token}" ]]; then
+
+        [[ $- == *x* ]] && { xtrace=1; set +x; }
+        export CARGO_REGISTRY_TOKEN="${token}"
+
+        trap '
+            if (( old_token_set )); then
+                export CARGO_REGISTRY_TOKEN="${old_token}"
+            else
+                unset CARGO_REGISTRY_TOKEN
+            fi
+
+            (( xtrace )) && set -x
+
+            trap - RETURN
+        ' RETURN
+
+    fi
+    if [[ ${#package[@]} -gt 0 ]]; then
+
+        for p in "${package[@]}"; do [[ "$(cmd_can_publish "${p}")" == "yes" ]] || die "Package: ${p} already published" 2; done
+        for p in "${package[@]}"; do run_cargo publish --package "${p}" "${cargo_args[@]}" "${kwargs[@]}"; done
+
+        return 0
+
+    fi
+
+    [[ "$(cmd_can_publish)" == "yes" ]] || die "There is some packages already published" 2
+    run_cargo publish --workspace "${cargo_args[@]}" "${kwargs[@]}"
+
+}
+cmd_yank () {
+
+    source <(parse "$@" -- :package :version token undo:bool)
+
+    local old_token="" old_token_set=0 xtrace=0
+
+    version="${version#v}"
+    token="${token:-${CARGO_REGISTRY_TOKEN-}}"
+
+    [[ -n "${token}" ]] || die "Missing registry token. Use --token or set CARGO_REGISTRY_TOKEN." 2
+    [[ "${token}" =~ [[:space:]] ]] && die "Invalid token: ${token}." 2
+
+    if is_ci && ! is_ci_push; then
+        die "Refusing yank in CI." 2
+    fi
+    if ! is_ci; then
+
+        (( undo )) || confirm "About to yank ${package} v${version}. Continue?" || die "Aborted." 1
+        (( undo )) && confirm "About to undo yank ${package} v${version}. Continue?" || die "Aborted." 1
+
+    fi
+    if [[ -n "${CARGO_REGISTRY_TOKEN+x}" ]]; then
+        old_token_set=1
+        old_token="${CARGO_REGISTRY_TOKEN}"
+    fi
+    if [[ -n "${token}" ]]; then
+
+        [[ $- == *x* ]] && { xtrace=1; set +x; }
+        export CARGO_REGISTRY_TOKEN="${token}"
+
+        trap '
+            if (( old_token_set )); then
+                export CARGO_REGISTRY_TOKEN="${old_token}"
+            else
+                unset CARGO_REGISTRY_TOKEN
+            fi
+
+            (( xtrace )) && set -x
+
+            trap - RETURN
+        ' RETURN
+
+    fi
+    if (( undo )); then
+        run_cargo yank -p "${package}" --version "${version}" --undo "${kwargs[@]}"
+        return 0
+    fi
+
+    run_cargo yank -p "${package}" --version "${version}" "${kwargs[@]}"
+
+}
+
+cmd_perf_help () {
+
+    info_ln "Safety :\n"
+
+    printf '    %s\n' \
+        "semver                     * Semver via cargo llvm-cov (lcov/codecov)" \
+        "coverage                   * Coverage via cargo llvm-cov (lcov/codecov)" \
+        "" \
+        "bloat                      * Check bloat for (binary size)" \
+        "udeps                      * Detect unused dependencies (cargo udeps)" \
+        "hack                       * Feature-matrix checks (cargo hack)" \
+        "" \
+        "fuzz                       * Fuzz targets (cargo fuzz) with sane defaults" \
+        "miri                       * Miri interpreter checks (UB / unsafe issues)" \
+        "sanitizer                  * Sanitizers pipeline (asan/tsan/msan/lsan) for UB detection" \
+        "" \
+        "samply                     * CPU profiling via samply (Firefox Profiler UI) for one target" \
+        "samply-load                * Load saved samply profile (default: profiles/samply.json)" \
+        "" \
+        "flame                      * CPU flamegraph via cargo flamegraph (output: SVG)" \
+        "flame-open                 * Open saved flamegraph SVG (default: profiles/flamegraph.svg)" \
+        ''
+
+}
+
+semver_baseline () {
+
+    local baseline="${1:-}" remote="${2:-origin}" def="" base=""
+
+    [[ -n "${baseline}" ]] && { printf '%s' "${baseline}"; return 0; }
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+
+    if is_ci_pull; then
+
+        base="${GITHUB_BASE_REF:-}"
+        [[ -n "${base}" ]] || die "semver: missing GITHUB_BASE_REF (or pass --base <rev>)"
+
+        git show-ref --verify --quiet "refs/remotes/${remote}/${base}" 2>/dev/null || \
+            run git fetch --no-tags "${remote}" "${base}:refs/remotes/${remote}/${base}" >/dev/null 2>&1 || \
+                die "semver: git fetch failed"
+
+        printf '%s' "${remote}/${base}"
+        return 0
+
+    fi
+
+    def="$(git symbolic-ref -q "refs/remotes/${remote}/HEAD" 2>/dev/null || true)"
+    def="${def#refs/remotes/"${remote}"/}"
+    [[ -n "${def}" ]] || def="main"
+
+    git show-ref --verify --quiet "refs/remotes/${remote}/${def}" 2>/dev/null || \
+        run git fetch --no-tags "${remote}" "${def}:refs/remotes/${remote}/${def}" >/dev/null 2>&1 || true
+
+    git show-ref --verify --quiet "refs/remotes/${remote}/${def}" 2>/dev/null || return 0
+    printf '%s' "${remote}/${def}"
+
+}
+cmd_semver () {
+
+    ensure cargo cargo-semver-checks
+    source <(parse "$@" -- base remote)
+
+    local baseline="$(semver_baseline "${base}" "${remote}")"
+    [[ -n "${baseline}" ]] || die "semver: cannot detect baseline"
+
+    run cargo semver-checks check-release --baseline-rev "${base}" "${kwargs[@]}"
+
+}
+
+cov_upload_out () {
+
+    ensure curl chmod mv mkdir
+    source <(parse "$@" -- mode name version token flags out)
+
+    [[ -n "${flags}" ]] || flags="${name}"
+    [[ -n "${name}"  ]] || name="coverage-rust-${GITHUB_RUN_ID:-local}"
+
+    [[ -n "${version}" ]] || version="latest"
+    [[ -n "${version}" && "${version}" != "latest" && "${version}" != v* ]] && version="v${version}"
+    [[ -n "${out}" ]] || out="lcov.info"
+
+    [[ -n "${token}" ]] || token="${CODECOV_TOKEN:-}"
+    [[ -n "${token}" ]] || die "codecov: CODECOV_TOKEN is missing."
+
+    [[ -f "${out}" ]] || die "codecov: file not found: ${out}"
+
+    local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    local arch="$(uname -m)" dist="linux"
+
+    if [[ "${os}" == "darwin" ]]; then dist="macos"; fi
+    if [[ "${dist}" == "linux" && ( "${arch}" == "aarch64" || "${arch}" == "arm64" ) ]]; then dist="linux-arm64"; fi
+
+    local cache_dir="${TMPDIR:-/tmp}/.codecov/cache" resolved="${version}"
+    local bin="${cache_dir}/codecov-${dist}-${resolved}"
+
+    mkdir -p -- "${cache_dir}"
+
+    if [[ "${version}" == "latest" ]]; then
+
+        local latest_page="$(curl -fsSL "https://cli.codecov.io/${dist}/latest" 2>/dev/null || true)"
+        local v="$(printf '%s\n' "${latest_page}" | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)"
+
+        [[ -n "${v}" ]] && resolved="${v}"
+        bin="${cache_dir}/codecov-${dist}-${resolved}"
+
+    fi
+    if [[ ! -x "${bin}" ]]; then
+
+        local url_a="https://cli.codecov.io/${dist}/${resolved}/codecov"
+        local url_b="https://cli.codecov.io/${resolved}/${dist}/codecov"
+        local sha_a="https://cli.codecov.io/${dist}/${resolved}/codecov.SHA256SUM"
+        local sha_b="https://cli.codecov.io/${resolved}/${dist}/codecov.SHA256SUM"
+        local sig_a="https://cli.codecov.io/${dist}/${resolved}/codecov.SHA256SUM.sig"
+        local sig_b="https://cli.codecov.io/${resolved}/${dist}/codecov.SHA256SUM.sig"
+
+        local tmp_dir="$(mktemp -d "${cache_dir}/codecov.tmp.XXXXXX" 2>/dev/null || true)"
+
+        if [[ -z "${tmp_dir}" || ! -d "${tmp_dir}" ]]; then
+            tmp_dir="${cache_dir}/codecov.tmp.$$"
+            mkdir -p -- "${tmp_dir}" || die "Codecov: failed to create temp dir."
+        fi
+
+        local tmp_bin="${tmp_dir}/codecov"
+        local tmp_sha="${tmp_dir}/codecov.SHA256SUM"
+        local tmp_sig="${tmp_dir}/codecov.SHA256SUM.sig"
+
+        trap 'rm -rf -- "${tmp_dir:-}" 2>/dev/null || true; trap - RETURN' RETURN
+        rm -f -- "${tmp_bin}" "${tmp_sha}" "${tmp_sig}" 2>/dev/null || true
+
+        run curl -fsSL -o "${tmp_bin}" "${url_a}" || run curl -fsSL -o "${tmp_bin}" "${url_b}"
+        run curl -fsSL -o "${tmp_sha}" "${sha_a}" || run curl -fsSL -o "${tmp_sha}" "${sha_b}"
+
+        curl -fsSL -o "${tmp_sig}" "${sig_a}" 2>/dev/null || curl -fsSL -o "${tmp_sig}" "${sig_b}" 2>/dev/null || rm -f -- "${tmp_sig}" 2>/dev/null || true
+
+        if [[ -f "${tmp_sig}" ]] && has gpg; then
+
+            local keyring="${tmp_dir}/trustedkeys.gpg"
+            local keyfile="${tmp_dir}/codecov.pgp.asc"
+            local want_fp="27034E7FDB850E0BBC2C62FF806BB28AED779869"
+
+            run curl -fsSL -o "${keyfile}" "https://keybase.io/codecovsecurity/pgp_keys.asc"
+            gpg --no-default-keyring --keyring "${keyring}" --import "${keyfile}" >/dev/null 2>&1 || true
+
+            local got_fp="$(gpg --no-default-keyring --keyring "${keyring}" --fingerprint --with-colons 2>/dev/null | awk -F: '$1=="fpr"{print $10; exit}' || true)"
+
+            [[ -n "${got_fp}" ]] || die "Codecov: cannot read PGP fingerprint."
+            [[ "${got_fp}" == "${want_fp}" ]] || die "Codecov: PGP fingerprint mismatch."
+
+            gpg --no-default-keyring --keyring "${keyring}" --verify "${tmp_sig}" "${tmp_sha}" >/dev/null 2>&1 || die "Codecov: SHA256SUM signature verification failed."
+
+        fi
+
+        local got="" want="$(awk '$2 ~ /(^|\/)codecov$/ { print $1; exit }' "${tmp_sha}" 2>/dev/null || true)"
+        [[ -n "${want}" ]] || die "Codecov: invalid SHA256SUM file."
+
+        if has sha256sum; then got="$(sha256sum "${tmp_bin}" 2>/dev/null | awk '{print $1}' || true)"
+        elif has shasum; then got="$(shasum -a 256 "${tmp_bin}" 2>/dev/null | awk '{print $1}' || true)"
+        elif has openssl; then got="$(openssl dgst -sha256 "${tmp_bin}" 2>/dev/null | awk '{print $NF}' || true)"
+        else die "Codecov: no SHA256 tool found (need sha256sum or shasum or openssl)."
+        fi
+
+        [[ -n "${got}" ]] || die "Codecov: failed to compute checksum."
+        [[ "${got}" == "${want}" ]] || die "Codecov: checksum mismatch."
+
+        run chmod +x "${tmp_bin}"
+        run mv -f -- "${tmp_bin}" "${bin}"
+        run "${bin}" --version >/dev/null 2>&1
+
+    fi
+
+    export CODECOV_TOKEN="${token}"
+    local -a args=( --verbose upload-process --disable-search --fail-on-error -f "${out}" )
+
+    [[ -n "${flags}" ]] && args+=( -F "${flags}" )
+    [[ -n "${name}"  ]] && args+=( -n "${name}" )
+
+    run "${bin}" "${args[@]}"
+    success "Ok: Codecov file uploaded."
+
+}
+cmd_coverage () {
+
+    ensure cargo cargo-llvm-cov
+    source <(parse "$@" -- name version flags token out mode=lcov upload:bool)
+
+    local -a args=( --exclude bloats --exclude fuzz --"${mode}" )
+
+    out="${out:-"${OUT_DIR:-out}/lcov.info"}"
+    [[ "${out}" == */* ]] && run mkdir -p -- "${out%/*}"
+    [[ -f "${out}" ]] || : > "${out}"
+
+    run cargo llvm-cov clean --workspace
+    run cargo llvm-cov --workspace --all-targets --all-features "${args[@]}" --output-path "${out}" --remap-path-prefix "${kwargs[@]}"
+
+    success "Ok: coverage processed -> ${out}"
+    (( upload )) && cov_upload_out "${mode}" "${name}" "${version}" "${token}" "${flags}" "${out}"
+
+}
+
+cmd_bloat () {
+
+    source <(parse "$@" -- package:list out="profiles/bloat.info" max_size=10MB all:bool release:bool=true)
+
+    local -a pkgs=()
+
+    if [[ ${#package[@]} -gt 0 ]]; then pkgs=( "${package[@]}" ); ensure_workspace_pkg "${pkgs[@]}"
+    elif (( all )); then mapfile -t pkgs < <(workspace_pkgs)
+    else mapfile -t pkgs < <(publishable_pkgs)
+    fi
+
+    [[ ${#pkgs[@]} -gt 0 ]] || die "bloat: no packages selected" 2
+    [[ "${out}" == */* ]] && run mkdir -p -- "${out%/*}"
+    : > "${out}"
+
+    printf '\n%s\n' "---------------------------------------" >> "${out}"
+    printf '%s' "- Bloats Report: " >> "${out}"
+
+    [[ -n "${max_size}" ]] && printf '%s' " Max-Size ( ${max_size} )" >> "${out}"
+
+    printf '\n%s\n' "- Version: $(cmd_version)" >> "${out}"
+    printf '%s\n\n' "---------------------------------------" >> "${out}"
+
+    local meta="$(run_cargo metadata --no-deps --format-version 1 2>/dev/null)" || die "bloat: failed to get metadata" 2
+    local target_dir="$(jq -r '.target_directory' <<<"${meta}" 2>/dev/null || true)"
+    [[ -n "${target_dir}" ]] || die "bloat: failed to read target_directory" 2
+
+    local mod="debug" flag="--dev"
+    (( release )) && { mod="release"; flag="--release"; }
+
+    local exe="" pkg="" out_text="" i=1
+    [[ "$(os_name)" == "windows" ]] && exe=".exe"
+
+    for pkg in "${pkgs[@]}"; do
+
+        printf '%s\n' "Analysing : ${pkg} ..."
+
+        printf '%d) %s:\n\n' "${i}" "${pkg}" >> "${out}"
+        (( i++ ))
+
+        local -a bins=()
+        mapfile -t bins < <(jq -r --arg n "${pkg}" '.packages[] | select(.name == $n) | .targets[] | select(.kind | index("bin")) | .name' <<<"${meta}")
+
+        if (( ${#bins[@]} > 0 )); then
+
+            local x="" bin_name="${bins[0]}"
+            for x in "${bins[@]}"; do [[ "${x}" == "${pkg}" ]] && { bin_name="${x}"; break; }; done
+
+            local bin_path="${target_dir}/${mod}/${bin_name}${exe}"
+
+            if out_text="$(NO_COLOR=1 CARGO_TERM_COLOR=never run_cargo bloat -p "${pkg}" --bin "${bin_name}" "${flag}" "${kwargs[@]}" 2>&1)"; then
+
+                awk '{ sub(/\r$/, "") } !on && /^[[:space:]]*File[[:space:]]/ { on=1 } on { print }' <<<"${out_text}" >> "${out}"
+                printf '\n' >> "${out}"
+
+                [[ -n "${max_size}" ]] && check_max_size "${bin_path}" "${max_size}" || true
+
+            else
+
+                printf 'ERROR: %s\n\n' "can't resolve ${bin_path}" >> "${out}"
+
+            fi
+
+        else
+
+            local bin_name="bloat-${pkg}"
+
+            if out_text="$(NO_COLOR=1 CARGO_TERM_COLOR=never run_cargo bloat -p bloats --bin "${bin_name}" --features "bloat-${pkg}" "${flag}" "${kwargs[@]}" 2>&1)"; then
+
+                local bin_path="${target_dir}/${mod}/${bin_name}${exe}"
+
+                awk '{ sub(/\r$/, "") } !on && /^[[:space:]]*File[[:space:]]/ { on=1 } on { print }' <<<"${out_text}" >> "${out}"
+                printf '\n' >> "${out}"
+
+                [[ -n "${max_size}" ]] && check_max_size "${bin_path}" "${max_size}" || true
+
+            elif out_text="$(NO_COLOR=1 CARGO_TERM_COLOR=never run_cargo bloat -p bloats --bin "${pkg}" --features "bloat-${pkg}" "${flag}" "${kwargs[@]}" 2>&1)"; then
+
+                bin_name="${pkg}"
+                local bin_path="${target_dir}/${mod}/${bin_name}${exe}"
+
+                awk '{ sub(/\r$/, "") } !on && /^[[:space:]]*File[[:space:]]/ { on=1 } on { print }' <<<"${out_text}" >> "${out}"
+                printf '\n' >> "${out}"
+
+                [[ -n "${max_size}" ]] && check_max_size "${bin_path}" "${max_size}" || true
+
+            else
+
+                printf 'ERROR: cargo bloat failed for %s (via bloats)\n%s\n\n' "${pkg}" "${out_text}" >> "${out}"
+
+            fi
+
+
+        fi
+
+    done
+
+    success "Analysed: out file -> ${out}"
+
+}
+cmd_udeps () {
+
+    run_cargo udeps --nightly --all-targets "$@"
+
+}
+cmd_hack () {
+
+    source <(parse "$@" -- depth:int=2 each_feature:bool)
+
+    if (( each_feature )); then
+        run_cargo hack check --keep-going --each-feature "${kwargs[@]}"
+        return 0
+    fi
+
+    run_cargo hack check --keep-going --feature-powerset --depth "${depth}" "${kwargs[@]}"
+
+}
+
+cmd_fuzz () {
+
+    source <(parse "$@" -- timeout:int=10 len:int=4096 have_max_total_time:bool have_max_len:bool in_post:bool)
+
+    local -a pre=() post=()
+
+    while [[ $# -gt 0 ]]; do
+
+        if [[ "$1" == "--" ]]; then
+            in_post=1
+            shift || true
+            continue
+        fi
+        if (( in_post )); then
+            case "$1" in
+                -max_total_time|-max_total_time=*) have_max_total_time=1 ;;
+                -max_len|-max_len=*) have_max_len=1 ;;
+            esac
+            post+=( "$1" )
+            shift || true
+            continue
+        fi
+        case "$1" in
+            --timeout) shift || true; [[ $# -gt 0 ]] || die "Missing value for --timeout" 2; timeout="$1"; shift || true ;;
+            --timeout=*) timeout="${1#*=}"; shift || true ;;
+            --len) shift || true; [[ $# -gt 0 ]] || die "Missing value for --len" 2; len="$1"; shift || true ;;
+            --len=*) len="${1#*=}"; shift || true ;;
+            -max_total_time|-max_total_time=*) have_max_total_time=1; post+=( "$1" ); shift || true ;;
+            -max_len|-max_len=*) have_max_len=1; post+=( "$1" ); shift || true ;;
+            *) pre+=( "$1" ); shift || true ;;
+        esac
+
+    done
+
+    if [[ -z "${CARGO_BUILD_TARGET:-}" ]] || [[ "${CARGO_BUILD_TARGET:-}" == *-musl ]]; then
+
+        pre+=( "--target" "x86_64-unknown-linux-gnu" )
+
+    fi
+    if [[ "${#pre[@]}" -eq 0 ]] || [[ "${pre[0]-}" == -* ]]; then
+
+        (( have_max_total_time )) || [[ "${timeout}" == "0" ]] || post+=( "-max_total_time=${timeout}" )
+        (( have_max_len )) || [[ "${len}" == "0" ]] || post+=( "-max_len=${len}" )
+
+        local -a targets=()
+        local t=""
+
+        while IFS= read -r line; do
+            [[ -n "${line}" ]] || continue
+            targets+=( "${line}" )
+        done < <(run_cargo fuzz --nightly list 2>/dev/null || true)
+
+        [[ "${#targets[@]}" -gt 0 ]] || die "No fuzz targets found. Run: cargo fuzz init && cargo fuzz add <name>" 2
+
+        for t in "${targets[@]}"; do
+
+            if [[ "${#post[@]}" -gt 0 ]]; then run_cargo fuzz --nightly run "${t}" "${pre[@]}" -- "${post[@]}" || die "Fuzzing failed: ${t}" 2
+            else run_cargo fuzz --nightly run "${t}" "${pre[@]}" || die "Fuzzing failed: ${t}" 2
+            fi
+
+        done
+
+        return 0
+
+    fi
+    if [[ "${#pre[@]}" -gt 0 ]]; then
+
+        case "${pre[0]}" in
+            run|list|init|add|clean|cmin|tmin|coverage|fmt) ;;
+            *) pre=( "run" "${pre[@]}" ) ;;
+        esac
+
+    fi
+    if [[ "${pre[0]}" == "run" ]]; then
+
+        (( have_max_total_time )) || [[ "${timeout}" == "0" ]] || post+=( "-max_total_time=${timeout}" )
+        (( have_max_len )) || [[ "${len}" == "0" ]] || post+=( "-max_len=${len}" )
+
+    fi
+    if [[ "${#post[@]}" -gt 0 ]]; then
+
+        run_cargo fuzz --nightly "${pre[@]}" -- "${post[@]}"
+        return $?
+
+    fi
+
+    run_cargo fuzz --nightly "${pre[@]}"
+
+}
+cmd_miri () {
+
+    source <(parse "$@" -- command=test :target=auto clean:bool setup:bool=1)
+
+    local target="${target}" tc="$(nightly_version)"
+    local target_dir="target/miri"
+
+    if [[ -z "${target}" || "${target}" == "auto" ]]; then
+
+        local vv="$(rustc +"${tc}" -vV 2>/dev/null)" || die "miri: failed to read rustc -vV for ${tc}" 2
+        target="$(awk '/^host: / { print $2; exit }' <<< "${vv}")"
+        [[ -n "${target}" ]] || die "miri: failed to detect host target." 2
+
+    fi
+
+    (( clean )) && { CARGO_TARGET_DIR="${target_dir}" run_cargo clean --nightly --target "${target}" >/dev/null 2>&1 || true; }
+    (( setup )) && { CARGO_TARGET_DIR="${target_dir}" run_cargo miri --nightly setup >/dev/null 2>&1 || true; }
+
+    CARGO_TARGET_DIR="${target_dir}" CARGO_INCREMENTAL=0 run_cargo miri --nightly "${command}" --target "${target}" "${kwargs[@]}"
+
+}
+cmd_sanitizer () {
+
+    source <(parse "$@" -- :sanitizer=asan command=test :target=auto clean:bool=0 track_origins:bool=1)
+
+    local target="${target}" san="${sanitizer}" zsan="" opt="" tc="$(nightly_version)"
+    local -a extra=()
+
+    case "${san}" in
+        asan|address)      san="asan"  ; zsan="address" ;;
+        tsan|thread)       san="tsan"  ; zsan="thread" ;;
+        lsan|leak)         san="lsan"  ; zsan="leak" ;;
+        msan|memory)
+            san="msan"
+            zsan="memory"
+            (( track_origins )) && extra+=( "-Zsanitizer-memory-track-origins" )
+        ;;
+        *) die "sanitizer: unknown sanitizer '${sanitizer}' (use: asan|tsan|msan|lsan)" 2 ;;
+    esac
+
+    if [[ -z "${target}" || "${target}" == "auto" ]]; then
+
+        local vv="$(rustc +"${tc}" -vV 2>/dev/null)" || die "sanitizer: failed to read rustc -vV for ${tc}" 2
+        target="$(awk '/^host: / { print $2; exit }' <<< "${vv}")"
+        [[ -n "${target}" ]] || die "sanitizer: failed to detect host target." 2
+
+    fi
+
+    local target_dir="target/sanitizers/${san}"
+    local rf="${RUSTFLAGS:-}"
+    local rdf="${RUSTDOCFLAGS:-}"
+
+    [[ -n "${rf}" ]] && rf+=" "
+    [[ -n "${rdf}" ]] && rdf+=" "
+
+    rf+="-Zsanitizer=${zsan} -Cforce-frame-pointers=yes -Cdebuginfo=1"
+    rdf+="-Zsanitizer=${zsan} -Cforce-frame-pointers=yes -Cdebuginfo=1"
+
+    for opt in "${extra[@]}"; do
+        rf+=" ${opt}"
+        rdf+=" ${opt}"
+    done
+
+    (( clean )) && { CARGO_TARGET_DIR="${target_dir}" run_cargo clean --nightly --target "${target}" >/dev/null 2>&1 || true; }
+    log "=> sanitizer: ${san} (-Zsanitizer=${zsan}) target=${target} command=${command} \n"
+
+    CARGO_TARGET_DIR="${target_dir}" \
+        CARGO_INCREMENTAL=0 \
+        RUSTFLAGS="${rf}" \
+        RUSTDOCFLAGS="${rdf}" \
+        run_cargo "${command}" --nightly -Zbuild-std=std --target "${target}" "${kwargs[@]}"
+
+}
+
+cmd_samply () {
+
+    ensure samply
+    set_perf_paranoid
+
+    source <(parse "$@" -- \
+        bin test bench example toolchain out="profiles/samply.json" nightly:bool stable:bool msrv:bool save_only:bool \
+        rate address duration package:list \
+    )
+
+    [[ -z "${bin}"  || -z "${example}" ]] || die "samply: use only one of --bin or --example" 2
+    [[ -z "${bench}" || -z "${test}"   ]] || die "samply: use only one of --bench or --test" 2
+    [[ -z "${bench}${example}"         ]] || die "samply: use only one of --bench or --example" 2
+
+    local -a args=( samply record )
+    local -a cargo=( cargo )
+    local -a pkgs=()
+    local -A seen=()
+    local p=""
+
+    (( stable  )) && toolchain="stable"
+    (( nightly )) && toolchain="nightly"
+    (( msrv    )) && toolchain="msrv"
+
+    if [[ "${toolchain}" == "stable" ]]; then cargo+=( +"$(stable_version)" )
+    elif [[ "${toolchain}" == "nightly" ]]; then cargo+=( +"$(nightly_version)" )
+    elif [[ "${toolchain}" == "msrv" ]]; then cargo+=( +"$(msrv_version)" )
+    elif [[ -n "${toolchain}" ]]; then cargo+=( +"${toolchain}" )
+    fi
+
+    if [[ -n "${bench}" ]]; then cargo+=( bench --bench "${bench}" )
+    elif [[ -n "${example}" ]]; then cargo+=( run --example "${example}" )
+    elif [[ -n "${test}" ]]; then cargo+=( test --test "${test}" )
+    else cargo+=( run ); [[ -n "${bin}" ]] && cargo+=( --bin "${bin}" )
+    fi
+
+    for p in "${package[@]-}"; do
+
+        [[ -n "${p}" ]] || continue
+        [[ -n "${seen[${p}]-}" ]] && continue
+
+        seen["${p}"]=1
+        pkgs+=( -p "${p}" )
+
+    done
+
+    (( ${#seen[@]} <= 1 )) || die "samply: --package supports at most one package" 2
+
+    (( save_only )) && args+=( --save-only )
+
+    [[ -n "${rate}"  ]] && args+=( --rate "${rate}" )
+    [[ -n "${address}"  ]] && args+=( --address "${address}" )
+    [[ -n "${duration}"  ]] && args+=( --duration "${duration}" )
+
+    [[ -n "${out}"  ]] && args+=( -o "${out}" )
+    [[ "${out}" == */* ]] && run mkdir -p -- "${out%/*}"
+    : > "${out}"
+
+    CARGO_PROFILE_RELEASE_DEBUG=true \
+        RUSTFLAGS="${RUSTFLAGS:-} -C force-frame-pointers=yes -g" \
+        run "${args[@]}" -- "${cargo[@]}" "${pkgs[@]}" "${kwargs[@]}"
+
+}
+cmd_samply_load () {
+
+    ensure samply
+    source <(parse "$@" -- :file="profiles/samply.json")
+
+    [[ -f "${file}" ]] || die "file not found: ${file}" 2
+    run samply load "${file}"
+
+}
+
+cmd_flame () {
+
+    ensure flamegraph
+    set_perf_flame
+
+    source <(parse "$@" -- \
+        bin test bench example toolchain out="profiles/flamegraph.svg" nightly:bool stable:bool msrv:bool package:list \
+    )
+
+    [[ -z "${bin}"  || -z "${example}" ]] || die "flame: use only one of --bin or --example" 2
+    [[ -z "${bench}" || -z "${test}"   ]] || die "flame: use only one of --bench or --test" 2
+    [[ -z "${bench}${example}"         ]] || die "flame: use only one of --bench or --example" 2
+
+    local -a cargo=( cargo )
+    local -a args=( flamegraph )
+    local -a pkgs=()
+    local -A seen=()
+    local p=""
+
+    (( stable  )) && toolchain="stable"
+    (( nightly )) && toolchain="nightly"
+    (( msrv    )) && toolchain="msrv"
+
+    if [[ "${toolchain}" == "stable" ]]; then cargo+=( +"$(stable_version)" )
+    elif [[ "${toolchain}" == "nightly" ]]; then cargo+=( +"$(nightly_version)" )
+    elif [[ "${toolchain}" == "msrv" ]]; then cargo+=( +"$(msrv_version)" )
+    elif [[ -n "${toolchain}" ]]; then cargo+=( +"${toolchain}" )
+    fi
+
+    if [[ -n "${bench}" ]]; then args+=( --bench "${bench}" )
+    elif [[ -n "${example}" ]]; then args+=( --example "${example}" )
+    elif [[ -n "${test}" ]]; then args+=( --test "${test}" )
+    else [[ -n "${bin}" ]] && args+=( --bin "${bin}" )
+    fi
+
+    for p in "${package[@]-}"; do
+
+        [[ -n "${p}" ]] || continue
+        [[ -n "${seen[${p}]-}" ]] && continue
+
+        seen["${p}"]=1
+        pkgs+=( -p "${p}" )
+
+    done
+
+    (( ${#seen[@]} <= 1 )) || die "flame: --package supports at most one package" 2
+
+    [[ -n "${out}"  ]] && args+=( -o "${out}" )
+    [[ "${out}" == */* ]] && run mkdir -p -- "${out%/*}"
+    : > "${out}"
+
+    CARGO_PROFILE_RELEASE_DEBUG=true \
+        RUSTFLAGS="${RUSTFLAGS:-} -C force-frame-pointers=yes -g" \
+        run "${cargo[@]}" "${args[@]}" "${pkgs[@]}" "${kwargs[@]}"
+
+}
+cmd_flame_open () {
+
+    ensure flamegraph
+    source <(parse "$@" -- :file="profiles/flamegraph.svg")
+
+    [[ -f "${file}" ]] || die "file not found: ${file}" 2
+    open_path "${file}"
+
+}
+
+cmd_safety_help () {
+
+    info_ln "Safety :\n"
+
+    printf '    %s\n' \
+        "audit-check                * Security advisories gate (cargo deny advisories/bans/licenses/sources)" \
+        "audit-fix                  * Auto-fix advisories by upgrading dependencies (cargo audit fix)" \
+        "" \
+        "fmt-check                  * Verify formatting --nightly (no changes)" \
+        "fmt-fix                    * Auto-format code --nightly" \
+        "fmt-stable-check           * Verify formatting checks (no changes)" \
+        "fmt-stable-fix             * Auto-format code" \
+        "" \
+        "lint-check                 * Clippy check lint for publishable crates only (workspace gate)" \
+        "lint-fix                   * Clippy fix lint / update depds with cargo update for publishable crates only (workspace gate)" \
+        "lint-strict-check          * Clippy check lint for full workspace (including non-publishable crates)" \
+        "lint-strict-fix            * Clippy fix lint or update depds with cargo update (including non-publishable crates)" \
+        ''
+
+}
+
+cmd_audit_check () {
+
+    if [[ -f deny.toml ]] || [[ -f .deny.toml ]]; then run_cargo deny check advisories bans licenses sources "$@"
+    else run_cargo audit "$@"
+    fi
+
+}
+cmd_audit_fix () {
+
+    # run_cargo audit fix "$@"
+    run_cargo update "$@"
+
+}
+
+cmd_fmt_check () {
+
+    run_cargo fmt --nightly --all -- --check "$@"
+
+}
+cmd_fmt_fix () {
+
+    run_cargo fmt --nightly --all "$@"
+
+}
+
+cmd_fmt_stable_check () {
+
+    run_cargo fmt --all -- --check "$@"
+
+}
+cmd_fmt_stable_fix () {
+
+    run_cargo fmt --all "$@"
+
+}
+
+cmd_lint_check () {
+
+    run_workspace_publishable clippy --workspace --all-targets --all-features "$@"
+
+}
+cmd_lint_fix () {
+
+    run_workspace_publishable clippy --fix --allow-dirty --allow-staged --workspace --all-targets --all-features "$@"
+
+}
+
+cmd_lint_strict_check () {
+
+    run_workspace clippy --workspace --all-targets --all-features "$@"
+
+}
+cmd_lint_strict_fix () {
+
+    run_workspace clippy --fix --allow-dirty --allow-staged --workspace --all-targets --all-features "$@"
+
+}
+
+cmd_vet_help () {
+
+    info_ln "Vet :\n"
+
+    printf '    %s\n' \
+        "vet-init                   * Initialize supply-chain auditing (cargo vet init)" \
+        "vet-fmt                    * Format supply-chain files (cargo vet fmt)" \
+        "vet-check                  * Verify audits and policies (cargo vet check)" \
+        "vet-suggest                * Suggest policy imports / criteria (cargo vet suggest)" \
+        "" \
+        "vet-diff                   * Diff between dependency versions (cargo vet diff)" \
+        "vet-certify                * Certify a crate version into audits (cargo vet certify)" \
+        "vet-trust                  * Trust a crate/publisher (cargo vet trust)" \
+        "vet-deny                   * Record a violation (cargo vet record-violation)" \
+        "vet-prune                  * Prune unused audits (cargo vet prune)" \
+        "vet-renew                  * Renew audit freshness (cargo vet renew)" \
+        "vet-clean                  * Delete supply-chain directory (cleanup)" \
+        "vet-import                 * Import audits from <name> (cargo vet import)" \
+        "" \
+        "vet-import-best            * Import best presets (mozilla/google/isrg/bytecode-alliance)" \
+        "vet-trust-best             * Apply curated trust set (safe-to-deploy baseline)" \
+        ''
+
+}
+
+cmd_vet_init () {
+
+    [[ -f "${ROOT_DIR}/Cargo.lock" ]] || run_cargo generate-lockfile
+    [[ -f "${ROOT_DIR}/supply-chain/config.toml" && -f "${ROOT_DIR}/supply-chain/audits.toml" ]] || run_cargo vet init
+
+}
+cmd_vet_fmt () {
+
+    cmd_vet_init
+    run_cargo vet fmt "$@"
+
+}
+cmd_vet_check () {
+
+    cmd_vet_init
+    run_cargo vet check "$@"
+
+}
+cmd_vet_suggest () {
+
+    cmd_vet_init
+    run_cargo vet suggest "$@"
+
+}
+cmd_vet_diff () {
+
+    cmd_vet_init
+    run_cargo vet diff "$@"
+
+}
+cmd_vet_certify () {
+
+    source <(parse "$@" -- :name :version :criteria="safe-to-run")
+
+    cmd_vet_init
+    run_cargo vet certify "${name}" "${version}" --criteria "${criteria}" "${kwargs[@]}"
+
+}
+cmd_vet_trust () {
+
+    cmd_vet_init
+    run_cargo vet trust "$@"
+
+}
+cmd_vet_deny () {
+
+    cmd_vet_init
+    run_cargo vet record-violation "$@"
+
+}
+
+cmd_vet_prune () {
+
+    cmd_vet_init
+    run_cargo vet prune "$@"
+
+}
+cmd_vet_renew () {
+
+    cmd_vet_init
+    run_cargo vet renew "$@"
+
+}
+cmd_vet_clean () {
+
+    confirm "Are you sure about deleting the supply chain?" && rm -rf supply-chain
+
+}
+cmd_vet_import () {
+
+    source <(parse "$@" -- :name)
+
+    cmd_vet_init
+    run_cargo vet import "${name}" "${kwargs[@]}"
+
+}
+
+cmd_vet_import_best () {
+
+    cmd_vet_import mozilla
+    cmd_vet_import google
+    cmd_vet_import isrg
+    cmd_vet_import bytecode-alliance
+
+}
+cmd_vet_trust_best () {
+
+    cmd_vet_trust dtolnay                                 --criteria safe-to-deploy
+    cmd_vet_trust r-efi dvdhrm                            --criteria safe-to-deploy
+    cmd_vet_trust libfuzzer-sys fitzgen                   --criteria safe-to-deploy
+    cmd_vet_trust getrandom josephlr                      --criteria safe-to-deploy
+    cmd_vet_trust find-msvc-tools cuviper                 --criteria safe-to-deploy
+    cmd_vet_trust libc rust-lang-owner                    --criteria safe-to-deploy
+    cmd_vet_trust jobserver rust-lang-owner               --criteria safe-to-deploy
+    cmd_vet_trust cc github:rust-lang/cc-rs               --criteria safe-to-deploy
+    cmd_vet_trust find-msvc-tools github:rust-lang/cc-rs  --criteria safe-to-deploy
+
+}
 
 install_confirm () {
 
@@ -9510,7 +13132,7 @@ install_write_src () {
     [[ -n "${BASH_SOURCE[0]:-}" && -r "${BASH_SOURCE[0]}" ]] && src="${BASH_SOURCE[0]}"
     [[ -z "${src}" && -n "${0:-}" && -r "${0}" ]] && src="${0}"
 
-    [[ -n "${src}" ]] || die "Cannot self-install from stdin. Use: bash <(curl -fsSL URL) --install --alias gun"
+    [[ -n "${src}" ]] || die "Cannot self-install from stdin. Use: bash <(curl -fsSL URL) --install [alias]"
 
     cat -- "${src}" > "${out}" || die "Failed to copy: ${src}"
     [[ -s "${out}" ]] || die "Invalid source code"
@@ -9708,9 +13330,9 @@ load_dispatch () {
     shift || true
 
     case "${cmd}" in
-        help)    load_docs;    return 0 ;;
-        version) load_version; return 0 ;;
-        install) install "$@"; return 0 ;;
+        --help)    load_docs;    return 0 ;;
+        --version) load_version; return 0 ;;
+        --install) install "$@"; return 0 ;;
     esac
 
     local lang="$(which_lang)"
@@ -9758,7 +13380,6 @@ load_parse () {
             shift || true
             continue
         fi
-
         case "${1}" in
             --yes)     YES=1;            shift || true ;;
             --verbose) VERBOSE=1;        shift || true ;;
@@ -9771,9 +13392,10 @@ load_parse () {
 
     done
 
-    (( help ))    && { CMD="help";    ARGS=( "${rest[@]}" ); return 0; }
-    (( version )) && { CMD="version"; ARGS=( "${rest[@]}" ); return 0; }
-    (( install )) && { CMD="install"; ARGS=( "${rest[@]}" ); return 0; }
+    (( help ))             && { CMD="--help";    ARGS=( "${rest[@]}" ); return 0; }
+    (( version ))          && { CMD="--version"; ARGS=( "${rest[@]}" ); return 0; }
+    (( install ))          && { CMD="--install"; ARGS=( "${rest[@]}" ); return 0; }
+    (( ${#rest[@]} == 0 )) && { CMD="--help";    ARGS=( "${rest[@]}" ); return 0; }
 
     CMD="${rest[0]:-}"
     (( ${#rest[@]} > 0 )) && ARGS=( "${rest[@]:1}" )
@@ -9782,7 +13404,7 @@ load_parse () {
 
 load () {
 
-    cd_root
+    cd_root || true
     [[ -d "${MODULE_DIR:-}" ]] && load_source_modules "${MODULE_DIR}"
 
     load_parse "$@"

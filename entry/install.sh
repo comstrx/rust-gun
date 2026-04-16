@@ -107,7 +107,7 @@ install_write_src () {
     [[ -n "${BASH_SOURCE[0]:-}" && -r "${BASH_SOURCE[0]}" ]] && src="${BASH_SOURCE[0]}"
     [[ -z "${src}" && -n "${0:-}" && -r "${0}" ]] && src="${0}"
 
-    [[ -n "${src}" ]] || die "Cannot self-install from stdin. Use: bash <(curl -fsSL URL) --install --alias gun"
+    [[ -n "${src}" ]] || die "Cannot self-install from stdin. Use: bash <(curl -fsSL URL) --install [alias]"
 
     cat -- "${src}" > "${out}" || die "Failed to copy: ${src}"
     [[ -s "${out}" ]] || die "Invalid source code"

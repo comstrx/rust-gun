@@ -5,23 +5,25 @@ cmd_fs_help () {
 
     printf '    %s\n' \
         "" \
+        "is-dir                     * Check if path is directory" \
+        "is-file                    * Check if path is file" \
         "new-dir                    * Create a new directory" \
         "new-file                   * Create a new file" \
         "" \
+        "path-exists                * Check if path is exists" \
         "path-type                  * Print path type if the path exists" \
         "file-type                  * Print file type if the file exists" \
         "" \
-        "copy                       * Copy file or directory to destination" \
-        "move                       * Move file or directory to destination" \
-        "link                       * Create symlink for file or directory" \
+        "copy-path                  * Copy file or directory to destination" \
+        "move-path                  * Move file or directory to destination" \
+        "clear-path                 * Clear directory contents or truncate file" \
+        "trash-path                 * Move file or directory to trash" \
+        "remove-path                * Remove file or directory" \
+        "link-path                  * Create symlink for file or directory" \
         "" \
-        "remove                     * Remove file or directory" \
-        "trash                      * Move file or directory to trash" \
-        "clear                      * Clear directory contents or truncate file" \
-        "" \
-        "stats                      * Show file or directory statistics" \
-        "diff                       * Show diff between source and destination" \
-        "synced                     * Check whether source and destination are synced" \
+        "path-stats                 * Show file or directory statistics" \
+        "path-diff                  * Show diff between source and destination" \
+        "path-synced                * Check whether source and destination are synced" \
         "" \
         "compress                   * Compress file or directory" \
         "extract                    * Extract archive to destination" \
@@ -31,109 +33,107 @@ cmd_fs_help () {
 
 }
 
+cmd_is_dir () {
+
+    fs_dir_exists "$@"
+
+}
+cmd_is_file () {
+
+    fs_file_exists "$@"
+
+}
 cmd_new_dir () {
 
-    source <(parse "$@" -- :src mode)
-    fs_new_dir "${src}" "${mode}" "${kwargs[@]}"
+    fs_new_dir "$@"
 
 }
 cmd_new_file () {
 
-    source <(parse "$@" -- :src mode)
-    fs_new_file "${src}" "${mode}" "${kwargs[@]}"
+    fs_new_file "$@"
+
+}
+
+cmd_path_exists () {
+
+    fs_path_exists "$@"
 
 }
 cmd_path_type () {
 
-    source <(parse "$@" -- :src)
-    fs_path_exists "${src}" && fs_path_type "${src}" "${kwargs[@]}"
+    fs_path_type "$@"
 
 }
 cmd_file_type () {
 
-    source <(parse "$@" -- :src)
-    fs_file_exists "${src}" && fs_file_type "${src}" "${kwargs[@]}"
+    fs_file_type "$@"
 
 }
 
-cmd_copy () {
+cmd_copy_path () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_copy_path "${src}" "${dest}" "${kwargs[@]}"
-
-}
-cmd_move () {
-
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_move_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_copy_path "$@"
 
 }
-cmd_link () {
+cmd_move_path () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_link_path "${src}" "${dest}" "${kwargs[@]}"
-
-}
-cmd_remove () {
-
-    source <(parse "$@" -- :src)
-    fs_path_exists "${src}" && fs_remove_path "${src}" "${kwargs[@]}"
+    fs_move_path "$@"
 
 }
-cmd_trash () {
+cmd_clear_path () {
 
-    source <(parse "$@" -- :src trash_dir)
-    fs_path_exists "${src}" && fs_trash_path "${src}" "${trash_dir}" "${kwargs[@]}"
+    fs_remove_path "$@" --clear
 
 }
-cmd_clear () {
+cmd_trash_path () {
 
-    source <(parse "$@" -- :src)
+    fs_trash_path "$@"
 
-    fs_dir_exists "${src}" && fs_remove_path "${src}" true "${kwargs[@]}"
-    fs_file_exists "${src}" && : > "${src}"
+}
+cmd_remove_path () {
+
+    fs_remove_path "$@"
+
+}
+cmd_link_path () {
+
+    fs_link_path "$@"
 
 }
 
-cmd_stats () {
+cmd_path_stats () {
 
-    source <(parse "$@" -- :src)
-    fs_path_exists "${src}" && fs_stats_path "${src}" "${kwargs[@]}"
-
-}
-cmd_diff () {
-
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_diff_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_stats_path "$@"
 
 }
-cmd_synced () {
+cmd_path_diff () {
 
-    source <(parse "$@" -- :src :dest)
-    fs_path_exists "${src}" && fs_synced_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_diff_path "$@"
 
 }
+cmd_path_synced () {
+
+    fs_synced_path "$@"
+
+}
+
 cmd_compress () {
 
-    source <(parse "$@" -- src)
-    fs_path_exists "${src:-${PWD}}" && fs_compress_path "${src}" "${kwargs[@]}"
+    fs_compress_path "$@"
 
 }
 cmd_extract () {
 
-    source <(parse "$@" -- :src dest)
-    fs_path_exists "${src}" && fs_extract_path "${src}" "${dest}" "${kwargs[@]}"
+    fs_extract_path "$@"
 
 }
 cmd_backup () {
 
-    source <(parse "$@" -- src)
-    fs_path_exists "${src:-${PWD}}" && fs_backup_path "${src}" "${kwargs[@]}"
+    fs_backup_path "$@"
 
 }
 cmd_sync () {
 
-    source <(parse "$@" -- src)
-    fs_path_exists "${src:-${PWD}}" && fs_sync_path "${src}" "${kwargs[@]}"
+    fs_sync_path "$@"
 
 }

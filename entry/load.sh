@@ -156,9 +156,9 @@ load_dispatch () {
     shift || true
 
     case "${cmd}" in
-        help)    load_docs;    return 0 ;;
-        version) load_version; return 0 ;;
-        install) install "$@"; return 0 ;;
+        --help)    load_docs;    return 0 ;;
+        --version) load_version; return 0 ;;
+        --install) install "$@"; return 0 ;;
     esac
 
     local lang="$(which_lang)"
@@ -206,7 +206,6 @@ load_parse () {
             shift || true
             continue
         fi
-
         case "${1}" in
             --yes)     YES=1;            shift || true ;;
             --verbose) VERBOSE=1;        shift || true ;;
@@ -219,9 +218,10 @@ load_parse () {
 
     done
 
-    (( help ))    && { CMD="help";    ARGS=( "${rest[@]}" ); return 0; }
-    (( version )) && { CMD="version"; ARGS=( "${rest[@]}" ); return 0; }
-    (( install )) && { CMD="install"; ARGS=( "${rest[@]}" ); return 0; }
+    (( help ))             && { CMD="--help";    ARGS=( "${rest[@]}" ); return 0; }
+    (( version ))          && { CMD="--version"; ARGS=( "${rest[@]}" ); return 0; }
+    (( install ))          && { CMD="--install"; ARGS=( "${rest[@]}" ); return 0; }
+    (( ${#rest[@]} == 0 )) && { CMD="--help";    ARGS=( "${rest[@]}" ); return 0; }
 
     CMD="${rest[0]:-}"
     (( ${#rest[@]} > 0 )) && ARGS=( "${rest[@]:1}" )
@@ -230,7 +230,7 @@ load_parse () {
 
 load () {
 
-    cd_root
+    cd_root || true
     [[ -d "${MODULE_DIR:-}" ]] && load_source_modules "${MODULE_DIR}"
 
     load_parse "$@"

@@ -8,9 +8,9 @@ APP_VERSION="0.1.0"
 APP_BASH_VERSION="5.2"
 TEMPLATE_PAYLOAD_KEY="__TEMPLATE_PAYLOAD_KEY__"
 
-WORKSPACE_DIR="${WORKSPACE_DIR:-/var/www}"
+WORKSPACE_DIR="${WORKSPACE_DIR:-/var/www/projects}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/d/Archive}"
-SYNC_DIR="${SYNC_DIR:-/mnt/d}"
+SYNC_DIR="${SYNC_DIR:-/mnt/d/Projects}"
 OUT_DIR="${OUT_DIR:-out}"
 
 GIT_HTTP_USER="${GIT_HTTP_USER:-x-access-token}"

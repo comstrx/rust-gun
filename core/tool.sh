@@ -1,7 +1,7 @@
 
 ensure_tool () {
 
-    ensure_pkg "$@" 1>&2
+    ensure_pkg "$@" 1>&2 || true
 
 }
 tool_target () {

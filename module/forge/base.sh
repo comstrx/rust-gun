@@ -204,7 +204,7 @@ forge_resolve_dest () {
 
     local dir="${1:-}" name="${2:-}"
 
-    dir="${dir:-${WORKSPACE_DIR:-${PWD}}}"
+    dir="${dir:-${WORKSPACE_DIR:-}}"
     dir="${dir/#\~/${HOME}}"
     dir="${dir%/}"
 
@@ -236,7 +236,7 @@ forge_resolve_path () {
 
 forge_template_dir () {
 
-    ensure_pkg awk tail tar mkdir rm dirname
+    ensure_tool awk tail tar mkdir rm dirname
 
     [[ -d "${TEMPLATE_DIR:-}" ]] && { printf '%s\n' "${TEMPLATE_DIR}"; return 0; }
 
