@@ -153,22 +153,13 @@ git_is_semver () {
 }
 git_norm_tag () {
 
-    local t="${1:-}"
-    local core="${t}"
+    local t="${1:-}" core=""
+    [[ -n "${t}" && "${t}" != [vV] ]] || { printf '\n'; return 0; }
 
-    (( ${#t} > 1 )) || { printf '\n'; return 0; }
+    core="${t}"
+    while [[ "${core}" == [vV]* ]]; do core="${core#[vV]}"; done
 
-    if [[ "${t}" == v* ]]; then
-
-        core="${t#v}"
-        git_is_semver "${core}" && { printf 'v%s\n' "${core}"; return 0; }
-
-        printf '%s\n' "${t}"
-        return 0
-
-    fi
-
-    git_is_semver "${t}" && { printf 'v%s\n' "${t}"; return 0; }
+    git_is_semver "${core}" && { printf 'v%s\n' "${core}"; return 0; }
     printf '%s\n' "${t}"
 
 }
@@ -330,7 +321,7 @@ git_guess_ssh_key () {
 
     if [[ -n "${WORKSPACE_DIR:-}" && "${p}" == "${WORKSPACE_DIR%/}/"* ]]; then
 
-        local scope="${p#${WORKSPACE_DIR%/}/}"
+        local scope="${p#"${WORKSPACE_DIR%/}"/}"
         scope="${scope%%/*}"
         [[ -n "${scope}" ]] && { printf '%s\n' "${scope}"; return 0; }
 
@@ -448,18 +439,18 @@ git_new_ssh_key () {
 
         awk -v a="${a}" '
             BEGIN { drop=0; seen_host=0 }
-            $0 == "### vx-key:" a { drop=1; seen_host=0; next }
+            $0 == "### cfg-key:" a { drop=1; seen_host=0; next }
             drop && $0 ~ /^Host[[:space:]]+/ {
                 if (seen_host == 0) { seen_host=1; next }
                 drop=0
             }
-            drop && $0 ~ /^### vx-key:/ { drop=0 }
+            drop && $0 ~ /^### cfg-key:/ { drop=0 }
             drop { next }
             { print }
         ' "${cfg}" > "${tmp}"
 
         {
-            printf '\n### vx-key:%s\n' "${a}"
+            printf '\n### cfg-key:%s\n' "${a}"
             printf 'Host %s\n' "${a}"
             printf '    HostName %s\n' "${host}"
             printf '    User git\n'
@@ -537,12 +528,11 @@ git_guard_no_unborn () {
 
         repo="${d%/.git}"
 
-        local repo_abs="$(cd -- "${repo}" && pwd -P 2>/dev/null || true)"
+        local repo_abs="$(cd -- "${repo}" 2>/dev/null && pwd -P)" || true
         [[ -n "${repo_abs}" && "${repo_abs}" == "${root_abs}" ]] && continue
 
         git -C "${repo}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
         git -C "${repo}" rev-parse --verify HEAD >/dev/null 2>&1 && continue
-
         die "Nested git repo with no commit checked out: ${repo}. Remove its .git or initialize/commit it."
 
     done < <(find "${root}" -mindepth 2 \( -name .git -type d -o -name .git -type f \) -print0 2>/dev/null)
@@ -550,7 +540,7 @@ git_guard_no_unborn () {
 }
 git_root_version () {
 
-    ensure_tool awk git
+    ensure_tool awk sort tail git
     local v="" root="$(git_repo_root)"
 
     if [[ -f "${root}/Cargo.toml" ]]; then
@@ -575,7 +565,7 @@ git_root_version () {
         )" || die "Can't detect version from ${root}/Cargo.toml."
 
     fi
-    if [[ -z "${v}" && -f "${root}/composer.json" ]]; then
+    if [[ -z "${v}" && -f "${root}/composer.json" ]] && has php; then
 
         v="$(
             php -r '$j=@json_decode(@file_get_contents($argv[1]), true); echo is_array($j)&&isset($j["version"])?$j["version"]:"";' \
@@ -583,7 +573,7 @@ git_root_version () {
         )" || true
 
     fi
-    if [[ -z "${v}" && -f "${root}/package.json" ]]; then
+    if [[ -z "${v}" && -f "${root}/package.json" ]] && has node; then
 
         v="$(
             node -e '
@@ -627,7 +617,6 @@ git_root_version () {
                     sect=tolower(s)
                     next
                 }
-
                 sect=="metadata" && v=="" && match($0, /^[[:space:]]*version[[:space:]]*=[[:space:]]*([^#;[:space:]]+)/, m) {
                     v=m[1]
                     gsub(/^[[:space:]]+|[[:space:]]+$/,"",v)
@@ -662,11 +651,9 @@ git_root_version () {
 
                     split(tag, a, /[-+]/)
                     split(a[1], n, ".")
-
                     major = n[1] + 0
                     minor = n[2] + 0
                     patch = n[3] + 0
-
                     pre = (tag ~ /-/) ? 0 : 1
 
                     printf "%020d %020d %020d %d %s\n", major, minor, patch, pre, raw
@@ -758,7 +745,9 @@ git_root_version () {
     if [[ -z "${v}" ]]; then
 
         local f=""
-        for f in "${root}/VERSION" "${root}/version" "${root}/.version"; do
+        local -a version_files=( "${root}/version" "${root}/VERSION" "${root}/.version" "${root}/.VERSION" )
+
+        for f in "${version_files[@]}"; do
 
             [[ -f "${f}" ]] || continue
             v="$(awk 'NR==1{ gsub(/\r/,""); print $1; exit }' "${f}" 2>/dev/null)" || true
@@ -767,53 +756,84 @@ git_root_version () {
         done
 
     fi
+    if [[ -z "${v}" ]]; then
+
+        local f="" val=""
+        local -a env_globs=( "${root}"/.env "${root}"/.env.* "${root}"/.var "${root}"/.var.* "${root}"/.secret "${root}"/.secret.* )
+
+        for f in "${env_globs[@]}"; do
+
+            [[ -f "${f}" ]] || continue
+
+            val="$(
+                awk '
+                    BEGIN {
+                        IGNORECASE = 1
+                    }
+                    function trim ( s ) {
+                        gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+                        return s
+                    }
+                    function unquote ( s ) {
+                        s = trim(s)
+                        gsub(/^["'\''`]+|["'\''`]+$/, "", s)
+                        return trim(s)
+                    }
+                    function emit_version ( s, m ) {
+                        s = unquote(s)
+
+                        if (match(s, /v?(0|[1-9][0-9]*)(\.[0-9A-Za-z]+){0,5}([._-][0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?/, m)) {
+                            print m[0]
+                            exit 0
+                        }
+                    }
+                    { gsub(/\r/, "", $0) }
+
+                    /^[[:space:]]*#/ || /^[[:space:]]*;/ || /^[[:space:]]*$/ {
+                        next
+                    }
+                    {
+                        line = $0
+
+                        sub(/^[[:space:]]*export[[:space:]]+/, "", line)
+                        line = trim(line)
+                        lower = tolower(line)
+
+                        if (lower !~ /(^|[[:space:]_./:-])(app[._-]?|project[._-]?|release[._-]?|build[._-]?|package[._-]?|pkg[._-]?|api[._-]?|service[._-]?|lib[._-]?|module[._-]?|workspace[._-]?)?version([[:space:]_./:-]|$)/) {
+                            next
+                        }
+                        if (match(line, /^[^:=\/[:space:]]+[[:space:]]*=>[[:space:]]*(.+)$/, m)) {
+                            emit_version(m[1])
+                        }
+                        if (match(line, /^[^:=\/[:space:]]+[[:space:]]*[:=\/][[:space:]]*(.+)$/, m)) {
+                            emit_version(m[1])
+                        }
+                        if (match(line, /^[^[:space:]]+[[:space:]]+(.+)$/, m)) {
+                            emit_version(m[1])
+                        }
+                        if (match(line, /(version|VERSION)[[:space:]]*[:=\/][[:space:]]*([^[:space:]#;]+)/, m)) {
+                            emit_version(m[2])
+                        }
+                        if (match(line, /(version|VERSION)[[:space:]]+([^[:space:]#;]+)/, m)) {
+                            emit_version(m[2])
+                        }
+                    }
+
+                    END {
+                        exit 1
+                    }
+                ' "${f}" 2>/dev/null
+            )" || true
+
+            [[ -n "${val}" ]] || continue
+            v="${val#v}"
+            [[ -n "${v}" ]] && break
+
+        done
+
+    fi
 
     [[ -n "${v}" ]] || die "Can't detect version from ${root}."
     printf '%s\n' "${v}"
-
-}
-git_default_branch () {
-
-    local remote="${1:-origin}" auth="${2:-ssh}" key="${3:-}" token="${4:-}" token_env="${5:-GIT_TOKEN}"
-
-    git_repo_guard
-    git_require_remote "${remote}"
-
-    local b="$(git symbolic-ref -q --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)"
-    [[ -n "${b}" ]] && { printf '%s\n' "${b#${remote}/}"; return 0; }
-
-    local kind="" target="" safe="" ssh_cmd="" line="" sym=""
-    IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
-
-    while IFS= read -r line; do
-        case "${line}" in
-            "ref: refs/heads/"*" HEAD")
-                sym="${line#ref: }"
-                sym="${sym% HEAD}"
-                break
-            ;;
-        esac
-    done < <(run_git "${kind}" "${ssh_cmd}" ls-remote --symref "${target}" HEAD 2>/dev/null || true)
-
-    if [[ -n "${sym}" ]]; then
-        printf '%s\n' "${sym#refs/heads/}"
-        return 0
-    fi
-
-    local def="$(git config --get init.defaultBranch 2>/dev/null || true)"
-
-    if [[ -n "${def}" ]] && git show-ref --verify --quiet "refs/heads/${def}"; then
-        printf '%s\n' "${def}"
-        return 0
-    fi
-
-    for def in main master trunk production prod; do
-        git show-ref --verify --quiet "refs/heads/${def}" && { printf '%s\n' "${def}"; return 0; }
-    done
-
-    def="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-    [[ -n "${def}" ]] && { printf '%s\n' "${def}"; return 0; }
-
-    return 1
 
 }

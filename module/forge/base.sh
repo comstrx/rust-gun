@@ -321,10 +321,15 @@ forge_copy_template () {
     local -a tar_out=()
 
     [[ -e "${src}" ]] || die "cannot resolve template src: ${src}"
-    [[ -e "${dest}" ]] && die "dest path already exists: ${dest}"
 
-    mkdir -p -- "${dest}" 2>/dev/null || die "cannot create dir: ${dest}"
-    [[ -n "$(find "${dest}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null || true)" ]] && die "dest dir not empty: ${dest}"
+    if [[ -e "${dest}" ]]; then
+
+        [[ -d "${dest}" ]] || die "dest path is not a directory: ${dest}"
+        [[ -z "$(find "${dest}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null || true)" ]] || die "dest dir not empty: ${dest}"
+
+    else
+        mkdir -p -- "${dest}" 2>/dev/null || die "cannot create dir: ${dest}"
+    fi
 
     tar_out=( tar -C "${dest}" -xf - )
     ( tar --help 2>/dev/null || true ) | grep -q -- '--no-same-owner' && tar_out=( tar --no-same-owner -C "${dest}" -xf - )
@@ -334,6 +339,8 @@ forge_copy_template () {
 }
 
 forge_copy_global_config () {
+
+    ensure_tool cp mkdir
 
     local src_dir="${1:-}" dest_dir="${2:-}" path="" base="" out=""
     [[ -d "${src_dir}" ]] || return 0
@@ -367,6 +374,8 @@ forge_copy_global_config () {
 }
 forge_copy_custom_config () {
 
+    ensure_tool cp mkdir
+
     local src_dir="${1:-}" dest_dir="${2:-}" rel="" out="" f=""
     [[ -d "${src_dir}" ]] || return 0
 
@@ -374,6 +383,7 @@ forge_copy_custom_config () {
 
         rel="${f#${src_dir}/}"
         out="${dest_dir}/${rel}"
+
         [[ -e "${out}" ]] && continue
 
         mkdir -p -- "${out%/*}" || die "Failed mkdir ${out}" 2

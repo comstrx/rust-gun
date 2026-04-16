@@ -6,17 +6,16 @@ cmd_git_help () {
     printf '    %s\n' \
         "" \
         "is-repo                    * Check whether current path is a git repository" \
-        "repo-root                  * Print repository root path" \
-        "root-tag                   * Build tag from current project version" \
+        "root                       * Print repository root path" \
+        "tag                        * Build tag from current project version (guessing tag)" \
         "" \
-        "clone                      * Clone remote repository" \
-        "pull                       * Pull latest changes with rebase" \
         "status                     * Print repository state (clean or dirty)" \
         "remote                     * Show remote URL and detected protocol" \
-        "" \
         "ssh-key                    * Create SSH key and optionally upload it" \
         "changelog                  * Prepend release entry to CHANGELOG.md" \
         "" \
+        "clone                      * Clone remote repository" \
+        "pull                       * Pull latest changes with rebase" \
         "init                       * Initialize repository and configure remote" \
         "push                       * Commit and push current branch" \
         "release                    * Push release with tag and changelog" \
@@ -49,12 +48,12 @@ cmd_is_repo () {
     return 1
 
 }
-cmd_repo_root () {
+cmd_root () {
 
     git_repo_root
 
 }
-cmd_root_tag () {
+cmd_tag () {
 
     local ver="v$(git_root_version)"
     local tag="$(git_norm_tag "${ver}")"
@@ -63,18 +62,6 @@ cmd_root_tag () {
 
 }
 
-cmd_clone () {
-
-    ensure_tool git
-    run git clone "$@"
-
-}
-cmd_pull () {
-
-    ensure_tool git
-    run git pull --rebase "$@"
-
-}
 cmd_status () {
 
     ensure_tool git
@@ -97,21 +84,21 @@ cmd_remote () {
     local url="$(git_remote_url "${remote}")"
     [[ -n "${url}" ]] || die "Remote not found: ${remote}"
 
-    info "${remote}: $(git_redact_url "${url}")"
+    print "${remote}: $(git_redact_url "${url}")"
 
     if [[ "${url}" == https://* || "${url}" == http://* ]]; then
-        info "Protocol: HTTPS"
+        print "Protocol: HTTPS"
         return 0
     fi
     if [[ "${url}" == git@*:* || "${url}" == ssh://* ]]; then
-        info "Protocol: SSH"
+        print "Protocol: SSH"
         return 0
     fi
 
-    warn "Protocol: unknown"
+    print "Protocol: unknown"
+    return 1
 
 }
-
 cmd_ssh_key () {
 
     source <(parse "$@" -- name host alias title upload:bool)
@@ -123,16 +110,16 @@ cmd_ssh_key () {
     local base="$(git_new_ssh_key "${name}" "${host}" "${alias}" "${kwargs[@]}")"
     local pub="${base}.pub"
 
-    if (( upload )) && [[ "${host}" == *github* ]]; then
+    if (( upload )); then
 
         ensure_tool gh
-        gh auth status >/dev/null 2>&1 || die "GitHub CLI not authenticated. Run 'gh auth login'"
+        gh auth status --hostname "${host}" >/dev/null 2>&1 || die "CLI not authenticated for host: ${host}"
 
         [[ -n "${title}" ]] || { local os="$(os_name)"; is_wsl && os="wsl"; title="${os}${name:+-${name}}"; }
         title="${title^^}"
 
-        run gh ssh-key add "${pub}" --title "${title}" --type authentication
-        success "Key uploaded to GitHub -> ${title}"
+        GH_HOST="${host}" run gh ssh-key add "${pub}" --title "${title}" --type authentication
+        success "SSH key uploaded : ${title}"
 
     fi
 
@@ -200,10 +187,78 @@ cmd_changelog () {
     success "changelog: updated ${file}"
 
 }
+
+cmd_clone () {
+
+    ensure_tool git
+    source <(parse "$@" -- :repo dest auth host)
+
+    local url="${repo}"
+    local auth="${auth:-${GIT_AUTH:-ssh}}"
+    local host="${host:-${GIT_HOST:-github.com}}"
+
+    if [[ "${repo}" != *"://"* && "${repo}" != git@*:* && "${repo}" != ssh://* ]]; then
+
+        local path="$(git_norm_path_git "${repo}")"
+
+        if [[ "${auth,,}" == http* ]]; then url="$(git_build_https_url "${host}" "${path}")" || die "Can't build https url"
+        else url="$(git_build_ssh_url "${host}" "${path}")" || die "Can't build ssh url"
+        fi
+
+    fi
+
+    if [[ -n "${dest}" ]]; then run git clone "${kwargs[@]}" -- "${url}" "${dest}"
+    else run git clone "${kwargs[@]}" -- "${url}"
+    fi
+
+}
+cmd_pull () {
+
+    ensure_tool git
+    git_repo_guard
+    source <(parse "$@" -- repo branch remote=origin auth host rebase:bool=true ff_only:bool)
+
+    local url="" auth="${auth:-${GIT_AUTH:-ssh}}"
+    local host="${host:-${GIT_HOST:-github.com}}"
+
+    if [[ -n "${repo}" ]]; then
+
+        if git remote get-url "${repo}" >/dev/null 2>&1; then
+            remote="${repo}"
+            url="$(git_remote_url "${remote}")"
+        elif [[ "${repo}" == *"://"* || "${repo}" == git@*:* || "${repo}" == ssh://* ]]; then
+            url="${repo}"
+        else
+            local path="$(git_norm_path_git "${repo}")"
+            if [[ "${auth,,}" == http* ]]; then url="$(git_build_https_url "${host}" "${path}")" || die "Can't build https url"
+            else url="$(git_build_ssh_url "${host}" "${path}")" || die "Can't build ssh url"
+            fi
+        fi
+
+    else
+
+        url="$(git_remote_url "${remote}")"
+        [[ -n "${url}" ]] || die "Remote not found: ${remote}"
+
+    fi
+
+    [[ -n "${branch}" ]] || branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    [[ -n "${branch}" ]] || branch="$(cmd_default_branch --remote "${remote}" 2>/dev/null || true)"
+    [[ -n "${branch}" ]] || die "Can't detect branch"
+
+    local -a cmd=( pull )
+
+    (( ff_only )) && cmd+=( --ff-only )
+    (( rebase )) && (( ! ff_only )) && cmd+=( --rebase )
+
+    cmd+=( "${kwargs[@]}" -- "${url}" "${branch}" )
+    run git "${cmd[@]}"
+
+}
 cmd_init () {
 
     ensure_tool git
-    source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool)
+    source <(parse "$@" -- :repo branch=main remote=origin auth key host create:bool=true)
 
     local path="" url="" parsed=0 explicit=0 before_url="" after_url="" cur=""
     auth="${auth:-${GIT_AUTH:-ssh}}"
@@ -228,7 +283,11 @@ cmd_init () {
     fi
 
     before_url="$(git_remote_url "${remote}")"
-    (( create )) && (( explicit == 0 )) && cmd_new_repo "${repo}" "${kwargs[@]}"
+
+    if (( create )) && (( explicit == 0 )) && [[ "$(type -t cmd_new_repo)" == "function" ]]; then
+        cmd_new_repo "${repo}" "${kwargs[@]}"
+    fi
+
     after_url="$(git_remote_url "${remote}")"
 
     if (( explicit == 0 )) && (( create )) && [[ -n "${after_url}" && "${after_url}" != "${before_url}" ]]; then
@@ -282,10 +341,12 @@ cmd_push () {
     source <(parse "$@" -- remote=origin auth key token token_env branch message tag t force:bool f:bool changelog:bool log:bool release:bool)
 
     git_require_remote "${remote}"
-    local kind="" target="" safe="" ssh_cmd=""
+  
+    local kind="" target="" safe="" ssh_cmd="" target_is_url=0
 
     IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
     [[ -n "${kind}" && -n "${target}" ]] || die "Failed to resolve git auth for remote '${remote}'."
+    [[ "${target}" == http://* || "${target}" == https://* ]] && target_is_url=1
 
     (( f )) && force=1
     (( log )) && changelog=1
@@ -293,24 +354,36 @@ cmd_push () {
     [[ -z "${tag}" ]] && tag="${t}"
     (( release )) && [[ -z "${tag}" ]] && tag="auto"
 
-    if [[ -n "${tag}" ]]; then
-
-        [[ "${tag}" == "auto" ]] && tag="$(cmd_root_tag)"
-        tag="$(git_norm_tag "${tag}")"
-        [[ -z "${message}" ]] && message="Track ${tag} release."
-
-    fi
     if [[ -z "${branch}" ]]; then
         branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
         [[ -n "${branch}" ]] || die "Detached HEAD. Use --branch <name>."
     fi
+    if [[ -n "${tag}" ]]; then
+
+        [[ "${tag}" == "auto" ]] && tag="$(cmd_tag)"
+        tag="$(git_norm_tag "${tag}")"
+        [[ -z "${message}" ]] && message="Track ${tag} release."
+
+    fi
     if [[ -z "$message" ]]; then
         [[ -n "${tag}" ]] && message="Track ${tag} release." || message="new commit"
     fi
+    if [[ -n "${tag}" ]]; then
 
-    local root="$(git_repo_root)"
-    git_guard_no_unborn "${root}"
+        if git_remote_has_tag "${kind}" "${ssh_cmd}" "${target}" "${tag}" && (( force == 0 )); then
 
+            log "Tag exists on remote (${remote}/${tag}). Use --force to overwrite."
+            tag=""
+
+        elif (( changelog )); then
+
+            cmd_changelog "${tag}" "${message}"
+
+        fi
+
+    fi
+
+    git_guard_no_unborn "$(git_repo_root)"
     run_git "${kind}" "${ssh_cmd}" add -A || die "git add failed."
 
     if run_git "${kind}" "${ssh_cmd}" diff --cached --quiet >/dev/null 2>&1; then
@@ -320,36 +393,6 @@ cmd_push () {
         run_git "${kind}" "${ssh_cmd}" commit -m "${message}" || die "git commit failed."
     fi
 
-    if [[ -n "${tag}" ]]; then
-
-        if git_remote_has_tag "${kind}" "${ssh_cmd}" "${target}" "${tag}" && (( force == 0 )); then
-
-            log "Tag exists on remote (${remote}/${tag}). Use --force to overwrite."
-            tag=""; changelog=0
-
-        else
-
-            if (( changelog )); then
-
-                cmd_changelog "${tag}" "${message}"
-                run_git "${kind}" "${ssh_cmd}" add -A
-
-                if ! run_git "${kind}" "${ssh_cmd}" diff --cached --quiet >/dev/null 2>&1; then
-
-                    git_require_identity
-                    run_git "${kind}" "${ssh_cmd}" commit -m "Track ${tag} release." || die "git commit failed."
-
-                fi
-
-            fi
-
-        fi
-
-    fi
-
-    local target_is_url=0
-    [[ "${target}" == http://* || "${target}" == https://* ]] && target_is_url=1
-
     if (( force )); then
 
         run_git "${kind}" "${ssh_cmd}" fetch "${target}" "${branch}" >/dev/null 2>&1 || true
@@ -358,13 +401,17 @@ cmd_push () {
     else
 
         if (( target_is_url )); then
+
             run_git "${kind}" "${ssh_cmd}" push "${target}" "${branch}" || die "push rejected. Run: git pull --rebase ${remote} ${branch}"
+
         else
+
             if git_upstream_exists_for "${branch}"; then
                 run_git "${kind}" "${ssh_cmd}" push "${target}" "${branch}" || die "push rejected. Run: git pull --rebase ${remote} ${branch}"
             else
                 run_git "${kind}" "${ssh_cmd}" push -u "${target}" "${branch}" || die "push rejected. Run: git pull --rebase ${remote} ${branch}"
             fi
+
         fi
 
     fi
@@ -373,9 +420,7 @@ cmd_push () {
 
         run_git "${kind}" "${ssh_cmd}" tag -d "${tag}" >/dev/null 2>&1 || true
 
-        if (( force )); then
-            run_git "${kind}" "${ssh_cmd}" push "${target}" --delete "${tag}" >/dev/null 2>&1 || true
-        fi
+        (( force )) && { run_git "${kind}" "${ssh_cmd}" push "${target}" --delete "${tag}" >/dev/null 2>&1 || true; }
 
         run_git "${kind}" "${ssh_cmd}" tag -a "${tag}" -m "${message}" || die "tag create failed."
 
@@ -448,7 +493,6 @@ cmd_new_branch () {
 
             run_git "${kind}" "${ssh_cmd}" fetch "${target}" "refs/heads/${branch}:refs/remotes/${remote}/${branch}" >/dev/null 2>&1 || true
             git_switch -c "${branch}" --track "${remote}/${branch}"
-
             return 0
 
         fi
@@ -480,24 +524,58 @@ cmd_remove_branch () {
 
 }
 
-cmd_default_branch () {
-
-    git_repo_guard
-
-    local b="$(git_default_branch "origin")" || die "Can't detect default branch."
-    [[ -n "${b}" ]] || die "No branch checked out."
-
-    info "${b}"
-
-}
 cmd_current_branch () {
 
     git_repo_guard
 
     local b="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-    [[ -n "${b}" ]] || die "No branch checked out."
+    [[ -n "${b}" ]] || return 1
 
-    info "${b}"
+    printf '%s\n' "${b}"
+
+}
+cmd_default_branch () {
+
+    git_repo_guard
+    source <(parse "$@" -- remote=origin auth key token token_env)
+
+    git_require_remote "${remote}"
+
+    local b="$(git symbolic-ref -q --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)"
+    [[ -n "${b}" ]] && { printf '%s\n' "${b#"${remote}"/}"; return 0; }
+
+    local kind="" target="" safe="" ssh_cmd="" line="" sym=""
+    IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
+
+    while IFS= read -r line; do
+        case "${line}" in
+            "ref: refs/heads/"*" HEAD")
+                sym="${line#ref: }"
+                sym="${sym% HEAD}"
+                break
+            ;;
+        esac
+    done < <(run_git "${kind}" "${ssh_cmd}" ls-remote --symref "${target}" HEAD 2>/dev/null || true)
+
+    local def="$(git config --get init.defaultBranch 2>/dev/null || true)"
+
+    if [[ -n "${sym}" ]]; then
+        printf '%s\n' "${sym#refs/heads/}"
+        return 0
+    fi
+    if [[ -n "${def}" ]] && git show-ref --verify --quiet "refs/heads/${def}"; then
+        printf '%s\n' "${def}"
+        return 0
+    fi
+
+    for def in main master trunk production prod; do
+        git show-ref --verify --quiet "refs/heads/${def}" && { printf '%s\n' "${def}"; return 0; }
+    done
+
+    def="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    [[ -n "${def}" ]] && { printf '%s\n' "${def}"; return 0; }
+
+    return 1
 
 }
 cmd_switch_branch () {
@@ -577,6 +655,8 @@ cmd_all_branches () {
     git for-each-ref --format='%(refname:short)' "refs/heads" "refs/remotes/${remote}" |
     awk -v remote="${remote}" '
         NF == 0 { next }
+        $0 == remote { next }
+        $0 ~ ("^" remote "/$") { next }
         $0 ~ ("^" remote "/HEAD$") { next }
 
         {
