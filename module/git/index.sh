@@ -8,17 +8,15 @@ cmd_git_help () {
         "is-repo                    * Check whether current path is a git repository" \
         "root                       * Print repository root path" \
         "tag                        * Build tag from current project version (guessing tag)" \
-        "" \
         "status                     * Print repository state (clean or dirty)" \
         "remote                     * Show remote URL and detected protocol" \
-        "ssh-key                    * Create SSH key and optionally upload it" \
-        "changelog                  * Prepend release entry to CHANGELOG.md" \
         "" \
         "clone                      * Clone remote repository" \
         "pull                       * Pull latest changes with rebase" \
         "init                       * Initialize repository and configure remote" \
         "push                       * Commit and push current branch" \
         "release                    * Push release with tag and changelog" \
+        "changelog                  * Prepend release entry to CHANGELOG.md" \
         "" \
         "new-tag                    * Create and push a new tag" \
         "remove-tag                 * Delete tag locally and remotely" \
@@ -61,7 +59,6 @@ cmd_tag () {
     [[ -n "${tag}" ]] && printf '%s\n' "${tag}"
 
 }
-
 cmd_status () {
 
     ensure_tool git
@@ -99,37 +96,7 @@ cmd_remote () {
     return 1
 
 }
-cmd_ssh_key () {
 
-    source <(parse "$@" -- name host alias title upload:bool)
-
-    [[ -n "${host}" ]] || host="${GIT_HOST:-github.com}"
-    [[ -n "${name}" ]] || name="$(git_guess_ssh_key 2>/dev/null || true)"
-    [[ -n "${name}" ]] || die "ssh: cannot guess key name. Use --name <key>"
-
-    local base="$(git_new_ssh_key "${name}" "${host}" "${alias}" "${kwargs[@]}")"
-    local pub="${base}.pub"
-
-    if (( upload )); then
-
-        ensure_tool gh
-        gh auth status --hostname "${host}" >/dev/null 2>&1 || die "CLI not authenticated for host: ${host}"
-
-        [[ -n "${title}" ]] || { local os="$(os_name)"; is_wsl && os="wsl"; title="${os}${name:+-${name}}"; }
-        title="${title^^}"
-
-        GH_HOST="${host}" run gh ssh-key add "${pub}" --title "${title}" --type authentication
-        success "SSH key uploaded : ${title}"
-
-    fi
-
-    git rev-parse --show-toplevel >/dev/null 2>&1 && git_keymap_set "${base}" >/dev/null 2>&1 || true
-
-    success "OK: key created -> ${base}"
-    success "Public key:"
-    cat -- "${pub}"
-
-}
 cmd_changelog () {
 
     ensure_tool grep mktemp mv date tail git
@@ -187,7 +154,6 @@ cmd_changelog () {
     success "changelog: updated ${file}"
 
 }
-
 cmd_clone () {
 
     ensure_tool git
@@ -195,7 +161,7 @@ cmd_clone () {
 
     local url="${repo}"
     local auth="${auth:-${GIT_AUTH:-ssh}}"
-    local host="${host:-${GIT_HOST:-github.com}}"
+    local host="${host:-${GIT_HOST:-${GH_HOST:-github.com}}}"
 
     if [[ "${repo}" != *"://"* && "${repo}" != git@*:* && "${repo}" != ssh://* ]]; then
 
@@ -219,7 +185,7 @@ cmd_pull () {
     source <(parse "$@" -- repo branch remote=origin auth host rebase:bool=true ff_only:bool)
 
     local url="" auth="${auth:-${GIT_AUTH:-ssh}}"
-    local host="${host:-${GIT_HOST:-github.com}}"
+    local host="${host:-${GIT_HOST:-${GH_HOST:-github.com}}}"
 
     if [[ -n "${repo}" ]]; then
 
@@ -262,7 +228,7 @@ cmd_init () {
 
     local path="" url="" parsed=0 explicit=0 before_url="" after_url="" cur=""
     auth="${auth:-${GIT_AUTH:-ssh}}"
-    host="${host:-${GIT_HOST:-github.com}}"
+    host="${host:-${GIT_HOST:-${GH_HOST:-github.com}}}"
 
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 
@@ -278,19 +244,15 @@ cmd_init () {
 
         local key_path="$(git_resolve_ssh_key "${key}")"
         [[ -f "${key_path}" ]] && git_keymap_set "${key_path}" >/dev/null 2>&1 || true
-        [[ -f "${key_path}" ]] || cmd_ssh_key "${key}" "${host}" --upload
+        [[ -f "${key_path}" ]] || cmd_new_ssh --name "${key}" --host "${host}" --upload "${kwargs[@]}"
 
     fi
 
     before_url="$(git_remote_url "${remote}")"
-
-    if (( create )) && (( explicit == 0 )) && [[ "$(type -t cmd_new_repo)" == "function" ]]; then
-        cmd_new_repo "${repo}" "${kwargs[@]}"
-    fi
-
+    (( create )) && (( ! explicit )) && cmd_new_repo --name "${repo}" --host "${host}" "${kwargs[@]}"
     after_url="$(git_remote_url "${remote}")"
 
-    if (( explicit == 0 )) && (( create )) && [[ -n "${after_url}" && "${after_url}" != "${before_url}" ]]; then
+    if (( ! explicit )) && (( create )) && [[ -n "${after_url}" && "${after_url}" != "${before_url}" ]]; then
 
         url="${after_url}"
 
@@ -300,10 +262,7 @@ cmd_init () {
 
         if [[ -n "${cur}" ]]; then
             local h="" p=""
-
-            if read -r h p < <(git_parse_remote "${cur}"); then
-                host="${h}"
-            fi
+            if read -r h p < <(git_parse_remote "${cur}"); then host="${h}"; fi
         fi
 
         if [[ "${repo}" != *"://"* && "${repo}" != git@*:* && "${repo}" != ssh://* && "${repo}" == */* ]]; then
@@ -338,10 +297,10 @@ cmd_init () {
 cmd_push () {
 
     git_repo_guard
-    source <(parse "$@" -- remote=origin auth key token token_env branch message tag t force:bool f:bool changelog:bool log:bool release:bool)
+    source <(parse "$@" -- remote=origin auth key token token_env branch message release:bool tag t force:bool f:bool changelog:bool log:bool=true)
 
     git_require_remote "${remote}"
-  
+
     local kind="" target="" safe="" ssh_cmd="" target_is_url=0
 
     IFS=$'\t' read -r kind target safe ssh_cmd < <(git_auth_resolve "${auth}" "${remote}" "${key}" "${token}" "${token_env}")
@@ -376,9 +335,7 @@ cmd_push () {
             tag=""
 
         elif (( changelog )); then
-
             cmd_changelog "${tag}" "${message}"
-
         fi
 
     fi
@@ -427,12 +384,6 @@ cmd_push () {
         if (( force )); then run_git "${kind}" "${ssh_cmd}" push --force "${target}" "${tag}" || die "tag push failed."
         else run_git "${kind}" "${ssh_cmd}" push "${target}" "${tag}" || die "tag push failed."
         fi
-
-    fi
-    if [[ -n "${key}" ]]; then
-
-        local key_path="$(git_resolve_ssh_key "${key}")"
-        [[ -f "${key_path}" ]] && git_keymap_set "${key_path}" >/dev/null 2>&1 || true
 
     fi
 
@@ -567,7 +518,6 @@ cmd_default_branch () {
         printf '%s\n' "${def}"
         return 0
     fi
-
     for def in main master trunk production prod; do
         git show-ref --verify --quiet "refs/heads/${def}" && { printf '%s\n' "${def}"; return 0; }
     done

@@ -125,10 +125,7 @@ git_is_semver () {
 
             [[ -n "${id}" ]] || return 1
             [[ "${id}" =~ ^[0-9A-Za-z-]+$ ]] || return 1
-
-            if [[ "${id}" =~ ^[0-9]+$ ]]; then
-                [[ "${id}" == "0" || "${id}" =~ ^[1-9][0-9]*$ ]] || return 1
-            fi
+            [[ "${id}" =~ ^[0-9]+$ ]] && { [[ "${id}" == "0" || "${id}" =~ ^[1-9][0-9]*$ ]] || return 1; }
 
         done
 
@@ -266,49 +263,94 @@ git_upstream_exists_for () {
 
 }
 
+git_keymap_id () {
+
+    local write="${1:-0}"
+    local root="$(git_repo_root)"
+
+    root="$(cd -- "${root}" 2>/dev/null && pwd -P || printf '%s' "${root}")"
+    [[ -n "${root}" && -d "${root}" ]] || die "git_keymap_id: invalid repo"
+
+    local dir="$(git -C "${root}" rev-parse --git-dir 2>/dev/null || true)"
+    [[ -n "${dir}" ]] || die "git_keymap_id: not a git repository"
+    [[ "${dir}" == /* ]] || dir="${root}/${dir}"
+
+    local path="${dir}/repo-keymap-id"
+    local id=""
+
+    if (( write )); then
+
+        local ms="$(date +%s%3N 2>/dev/null || true)"
+        [[ -n "${ms}" ]] || ms="$(($(date +%s) * 1000))"
+
+        id="${ms}-${PPID:-0}-$$-${RANDOM}${RANDOM}"
+        printf '%s\n' "${id}" > "${path}" || die "git_keymap_id: write failed"
+
+    else
+
+        if [[ -f "${path}" ]]; then
+
+            IFS= read -r id < "${path}" 2>/dev/null || true
+            id="${id%$'\r'}"
+
+        fi
+
+    fi
+
+    printf '%s\n' "${id}"
+
+}
 git_keymap_set () {
 
     ensure_tool mkdir mktemp mv awk chmod
-    source <(parse "$@" -- :key repo)
 
+    local key="${1:-}"
     local file="${HOME}/.ssh/git-keymap.tsv"
-    local dir="$(dirname -- "${file}")"
+    local root="$(git_repo_root)"
 
-    local repo_root="${repo:-"$(git_repo_root)"}"
-    repo_root="$(cd -- "${repo_root}" 2>/dev/null && pwd -P || printf '%s' "${repo_root}")"
-
-    [[ -n "${repo_root}" ]] || die "keymap: cannot detect repo root"
+    root="$(cd -- "${root}" 2>/dev/null && pwd -P || printf '%s' "${root}")"
+    [[ -n "${root}" ]] || die "keymap: cannot detect repo root"
     [[ -z "${key}" || "${key}" == *$'\t'* || "${key}" == *$'\n'* || "${key}" == *$'\r'* ]] && die "keymap: invalid key"
 
     local tmp="$(mktemp "${TMPDIR:-/tmp}/vx.keymap.XXXXXX")" || die "mktemp failed"
+    local dir="$(dirname -- "${file}")"
+    local id="$(git_keymap_id 1)"
+
     run mkdir -p -- "${dir}"
     chmod 700 "${dir}" 2>/dev/null || true
     [[ -f "${file}" ]] || : > "${file}" || die "keymap: create failed: ${file}"
 
-    awk -F $'\t' -v p="${repo_root}" '$1 != p' "${file}" > "${tmp}"
-    printf '%s\t%s\n' "${repo_root}" "${key}" >> "${tmp}"
+    awk -F $'\t' -v p="${root}" '$1 != p' "${file}" > "${tmp}"
+    printf '%s\t%s\t%s\n' "${root}" "${id}" "${key}" >> "${tmp}"
 
     run mv -f -- "${tmp}" "${file}"
     chmod 600 "${file}" 2>/dev/null || true
 
-    printf '%s\n' "${file}"
+    printf '%s\n' "${key}"
 
 }
 git_keymap_get () {
 
-    source <(parse "$@" -- repo)
-
     local file="${HOME}/.ssh/git-keymap.tsv"
-    local repo_root="${repo:-"$(git_repo_root)"}"
-    repo_root="$(cd -- "${repo_root}" 2>/dev/null && pwd -P || printf '%s' "${repo_root}")"
+    local root="$(git_repo_root)"
 
-    [[ -n "${repo_root}" ]] || return 1
+    root="$(cd -- "${root}" 2>/dev/null && pwd -P || printf '%s' "${root}")"
+    [[ -n "${root}" ]] || return 1
     [[ -f "${file}" ]] || return 1
 
-    awk -F $'\t' -v p="${repo_root}" '
-        $1 == p { print $2; found=1; exit }
-        END { if (!found) exit 1 }
-    ' "${file}"
+    local curr_id="$(git_keymap_id 2>/dev/null || true)"
+    [[ -n "${curr_id}" ]] || return 1
+
+    local row="$(awk -F $'\t' -v p="${root}" '$1 == p { print; exit }' "${file}" 2>/dev/null || true)"
+    [[ -n "${row}" ]] || return 1
+
+    local saved_id="" key=""
+    IFS=$'\t' read -r _ saved_id key <<< "${row}"
+
+    [[ -n "${saved_id}" && -n "${key}" ]] || return 1
+    [[ "${saved_id}" == "${curr_id}" ]] || return 1
+
+    printf '%s\n' "${key}"
 
 }
 git_guess_ssh_key () {
@@ -338,7 +380,6 @@ git_resolve_ssh_key () {
     local key="${hint}"
     [[ -f "${key}" ]] || key="${HOME}/.ssh/${hint}"
     [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519${hint:+_${hint}}"
-    [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519_private"
     [[ -f "${key}" ]] || key="${HOME}/.ssh/id_ed25519"
 
     printf '%s\n' "${key}"
@@ -347,15 +388,9 @@ git_resolve_ssh_key () {
 }
 git_auth_resolve () {
 
-    local auth="${1:-ssh}" remote="${2:-origin}" key="${3:-}" token="${4:-}" token_env="${5:-GIT_TOKEN}"
+    local auth="${1:-${GIT_AUTH:-ssh}}" remote="${2:-origin}" key="${3:-}" token="${4:-}" token_env="${5:-GIT_TOKEN}"
     local kind="" target="" safe="" ssh_cmd=""
 
-    if [[ -z "${auth}" ]]; then
-
-        local env_auth="${GIT_AUTH:-}"
-        [[ -n "${env_auth}" ]] && auth="${env_auth}" || auth="ssh"
-
-    fi
     if [[ "${auth}" == "ssh" ]]; then
 
         kind="ssh" target="${remote}" safe="${remote}" key="$(git_resolve_ssh_key "${key}")"
@@ -398,12 +433,11 @@ git_auth_resolve () {
 git_new_ssh_key () {
 
     ensure_tool ssh-keygen mkdir chmod rm
-    source <(parse "$@" -- name host alias type=ed25519 bits=4096 comment passphrase file config:bool=true add_agent:bool force:bool)
+    source <(parse "$@" -- :name :host alias type=ed25519 bits=4096 comment passphrase file config:bool=true add_agent:bool force:bool)
 
     local ssh_dir="${HOME}/.ssh" pub="" n="${name}" c="${comment}" base="${file}"
     base="${base/#\~/${HOME}}"
 
-    [[ -n "${host}" ]] || host="${GIT_HOST:-github.com}"
     [[ -n "${passphrase}" ]] || passphrase=""
     [[ -n "${c}" ]] || c="$(git config user.email 2>/dev/null || true)"
     [[ -n "${c}" ]] || c="${USER:-user}@${HOSTNAME:-host}"
@@ -527,12 +561,12 @@ git_guard_no_unborn () {
     while IFS= read -r -d '' d; do
 
         repo="${d%/.git}"
-
         local repo_abs="$(cd -- "${repo}" 2>/dev/null && pwd -P)" || true
         [[ -n "${repo_abs}" && "${repo_abs}" == "${root_abs}" ]] && continue
 
         git -C "${repo}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
         git -C "${repo}" rev-parse --verify HEAD >/dev/null 2>&1 && continue
+
         die "Nested git repo with no commit checked out: ${repo}. Remove its .git or initialize/commit it."
 
     done < <(find "${root}" -mindepth 2 \( -name .git -type d -o -name .git -type f \) -print0 2>/dev/null)
@@ -647,8 +681,8 @@ git_root_version () {
                 /^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/ {
                     raw = $0
                     tag = raw
-                    sub(/^v/, "", tag)
 
+                    sub(/^v/, "", tag)
                     split(tag, a, /[-+]/)
                     split(a[1], n, ".")
                     major = n[1] + 0
@@ -744,20 +778,6 @@ git_root_version () {
     fi
     if [[ -z "${v}" ]]; then
 
-        local f=""
-        local -a version_files=( "${root}/version" "${root}/VERSION" "${root}/.version" "${root}/.VERSION" )
-
-        for f in "${version_files[@]}"; do
-
-            [[ -f "${f}" ]] || continue
-            v="$(awk 'NR==1{ gsub(/\r/,""); print $1; exit }' "${f}" 2>/dev/null)" || true
-            [[ -n "${v}" ]] && break
-
-        done
-
-    fi
-    if [[ -z "${v}" ]]; then
-
         local f="" val=""
         local -a env_globs=( "${root}"/.env "${root}"/.env.* "${root}"/.var "${root}"/.var.* "${root}"/.secret "${root}"/.secret.* )
 
@@ -792,6 +812,7 @@ git_root_version () {
                     /^[[:space:]]*#/ || /^[[:space:]]*;/ || /^[[:space:]]*$/ {
                         next
                     }
+
                     {
                         line = $0
 
@@ -827,6 +848,20 @@ git_root_version () {
 
             [[ -n "${val}" ]] || continue
             v="${val#v}"
+            [[ -n "${v}" ]] && break
+
+        done
+
+    fi
+    if [[ -z "${v}" ]]; then
+
+        local f=""
+        local -a version_files=( "${root}/version" "${root}/VERSION" "${root}/.version" "${root}/.VERSION" )
+
+        for f in "${version_files[@]}"; do
+
+            [[ -f "${f}" ]] || continue
+            v="$(awk 'NR==1{ gsub(/\r/,""); print $1; exit }' "${f}" 2>/dev/null)" || true
             [[ -n "${v}" ]] && break
 
         done

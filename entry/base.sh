@@ -1,7 +1,4 @@
 
-YES="${YES:-0}"
-VERBOSE="${VERBOSE:-0}"
-
 APP_NAME="gun"
 APP_VERSION="0.1.0"
 
@@ -11,11 +8,15 @@ TEMPLATE_PAYLOAD_KEY="__TEMPLATE_PAYLOAD_KEY__"
 WORKSPACE_DIR="${WORKSPACE_DIR:-/var/www/projects}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/d/Archive}"
 SYNC_DIR="${SYNC_DIR:-/mnt/d/Projects}"
+
 OUT_DIR="${OUT_DIR:-out}"
 
-GIT_HTTP_USER="${GIT_HTTP_USER:-x-access-token}"
-GIT_HOST="${GIT_HOST:-github.com}"
-GIT_AUTH="${GIT_AUTH:-ssh}"
+YES="${YES:-0}"
+VERBOSE="${VERBOSE:-0}"
+
+GIT_HTTP_USER="${GIT_HTTP_USER:-}"
+GIT_HOST="${GIT_HOST:-}"
+GIT_AUTH="${GIT_AUTH:-}"
 GIT_TOKEN="${GIT_TOKEN:-}"
 GIT_SSH_KEY="${GIT_SSH_KEY:-}"
 
